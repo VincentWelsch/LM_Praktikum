@@ -316,16 +316,18 @@ fun SensorConfig(modifier: Modifier = Modifier,
         }
 
         // Sliders for individual sensor delays
-        arrayMapOf<String, Int>(
-            "Accelerometer" to accelDelay,
-            "Gyroscope" to gyroDelay,
-            "Magnetometer" to magnetDelay
-        ).forEach { (sensor, delay) -> Row {
-                Text(text = "$sensor delay: $delay")
+        for (i in 0..2) {
+            Row {
+                Text(text = "${sensorNames[i]} delay: ${sensorDelays[i]}")
                 Slider(
-                    value = delay.toFloat(),
+                    value = sensorDelays[i].toFloat(),
                     steps = 3,
                     onValueChange = {},
+                    onValueChangeFinished = {
+                        unregisterSensorListener(sensorListeners[i])
+                        registerSensorLister(sensorListeners[i],
+                            sensorTypes[i], sensorDelays[i])
+                    },
                     valueRange = SensorManager
                         .SENSOR_DELAY_FASTEST.toFloat()..SensorManager.SENSOR_DELAY_NORMAL.toFloat()
                 )
