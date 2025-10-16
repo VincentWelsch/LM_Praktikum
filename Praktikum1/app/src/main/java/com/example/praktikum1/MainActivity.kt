@@ -9,6 +9,7 @@ import android.hardware.SensorManager
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,14 +28,23 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.core.content.ContextCompat
 import com.example.praktikum1.ui.theme.Praktikum1Theme
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
@@ -101,9 +111,13 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
     var gyroData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
     var magnetData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
     var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) }
+    // Not in startApplication because LocalCOntext.current must be inside a composable
+    val ctx = LocalContext.current
+    val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
     Column {
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
+            fusedLocationProviderClient = fusedLocationProviderClient,
             onAccelDataChange = { accelData = it },
             onGyroDataChange = { gyroData = it },
             onMagnetDataChange = { magnetData = it },
@@ -117,6 +131,7 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
 fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
+                 fusedLocationProviderClient: FusedLocationProviderClient,
                  onAccelDataChange: (FloatArray) -> Unit,
                  onGyroDataChange: (FloatArray) -> Unit,
                  onMagnetDataChange: (FloatArray) -> Unit,
@@ -137,7 +152,9 @@ fun SensorConfig(modifier: Modifier = Modifier,
     var gyroDelay: Int by remember { mutableIntStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
     var magnetDelay: Int by remember { mutableIntStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
     var positionMinTimeMs: Int by remember { mutableIntStateOf(15000) }
-    var positionDistanceM: Float by remember { mutableStateOf(10f) }
+    var positionDistanceM: Float by remember { mutableFloatStateOf(10f) }
+    var positionPriority: Int by remember { mutableIntStateOf(Priority.PRIORITY_BALANCED_POWER_ACCURACY) }
+    var positionIntervalMs: Int by remember { mutableIntStateOf(10000) }
 
     // Moved to Application() to make accessible to other composables
     // SensorConfig() now uses "on...Change" lambdas to update values
@@ -191,6 +208,17 @@ fun SensorConfig(modifier: Modifier = Modifier,
         onPositionDataChange(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
     }
 
+    // locationCallback for fused location provider always the same -> outside registerLocationListener
+    val locationCallback = object: LocationCallback() {
+        override fun onLocationResult(p0: LocationResult) {
+            super.onLocationResult(p0)
+            if (p0.lastLocation != null) {
+                onPositionDataChange(floatArrayOf(p0.lastLocation!!.longitude.toFloat(),
+                    p0.lastLocation!!.latitude.toFloat()))
+            }
+        }
+    }
+
     // Register/unregister
     fun registerSensorLister(listener: SensorEventListener, type: Int, delay: Int) {
         try {
@@ -213,9 +241,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
     }
 
     @SuppressLint("MissingPermission")
-    fun registerLocationListener(locationManager: LocationManager,
-                                 locationListener: LocationListener,
-                                 method: String) {
+    fun registerLocationListener(method: String) {
         try {
             when (method) {
                 LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER -> {
@@ -225,9 +251,15 @@ fun SensorConfig(modifier: Modifier = Modifier,
                         positionDistanceM,
                         locationListener
                     )
+                    Log.d("LocationListenerRegistration", "Location listener registered")
                 }
                 "fused" -> {
-                    TODO()
+                    // locationRequest inside registerLocationListener as priority is changeable
+                    val locationRequest = LocationRequest.Builder(positionPriority,
+                        positionIntervalMs.toLong()).build()
+                    fusedLocationProviderClient.requestLocationUpdates(locationRequest,
+                        locationCallback, Looper.getMainLooper())
+                    Log.d("LocationListenerRegistration", "Fused location listener registered")
                 }
                 else -> Log.e("LocationListenerRegistrationError",
                     "Invalid location method: $method")
@@ -238,15 +270,16 @@ fun SensorConfig(modifier: Modifier = Modifier,
         }
     }
 
-    fun unregisterLocationListener(locationManager: LocationManager,
-                                   locationListener: LocationListener,
-                                   method: String) {
+    fun unregisterLocationListener(method: String) {
         try {
             when (method) {
-                LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER -> locationManager
-                    .removeUpdates(locationListener)
+                LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER -> {
+                    locationManager.removeUpdates(locationListener)
+                    Log.d("LocationListenerRegistration", "Location listener unregistered")
+                }
                 "fused" -> {
-                    TODO()
+                    fusedLocationProviderClient.removeLocationUpdates(locationCallback)
+                    Log.d("LocationListenerRegistration", "Fused location listener unregistered")
                 }
                 else -> Log.e("LocationListenerRegistrationError",
                     "Invalid location method: $method")
@@ -257,17 +290,10 @@ fun SensorConfig(modifier: Modifier = Modifier,
         }
     }
 
-    //
     fun changePositionMethod(method: String) {
-        when (method) {
-            LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER -> {
-                unregisterLocationListener(locationManager, locationListener, currentMethod)
-                registerLocationListener(locationManager, locationListener, method)
-            }
-            "fused" -> TODO()
-            else -> Log.e("LocationListenerRegistrationError",
-                "Invalid location method: $method")
-        }
+        unregisterLocationListener(currentMethod)
+        registerLocationListener(method)
+        currentMethod = method
     }
 
 
@@ -321,8 +347,16 @@ fun SensorConfig(modifier: Modifier = Modifier,
                 Text(text = "${sensorNames[i]} delay: ${sensorDelays[i]}")
                 Slider(
                     value = sensorDelays[i].toFloat(),
-                    steps = 3,
-                    onValueChange = {},
+                    modifier = modifier.weight(1f),
+                        // supposedly helps with less jumpy sliders when the text length changes
+                    steps = 2, // 0 -> step -> step -> 3
+                    onValueChange = { sensorDelays[i] = it.roundToInt() },
+                        // it.toInt was recommended to prevent recomposes with each fractional change
+                        /* changed to it.roundToInt because testing showed that some steps are
+                         * not rounded properly
+                         * used Slider with range 0..60000 and 59 steps (each +1000 increment)
+                         * at a certain interval got sequences like 52000 -> 52999 -> 54000
+                         */
                     onValueChangeFinished = {
                         unregisterSensorListener(sensorListeners[i])
                         registerSensorLister(sensorListeners[i],
@@ -332,7 +366,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
                         .SENSOR_DELAY_FASTEST.toFloat()..SensorManager.SENSOR_DELAY_NORMAL.toFloat()
                 )
             }
-        } // Note: steps = 3 because: 0, 1, 2, 3 (each ',' is a step)
+        }
 
         // Checkbox for position
         Row {
@@ -341,9 +375,9 @@ fun SensorConfig(modifier: Modifier = Modifier,
                 enabled = allSensorSwitchesEnabled,
                 onCheckedChange = { checked ->
                     if (checked) {
-                        registerLocationListener(locationManager, locationListener, currentMethod)
+                        registerLocationListener(currentMethod)
                     } else {
-                        unregisterLocationListener(locationManager, locationListener, currentMethod)
+                        unregisterLocationListener(currentMethod)
                     }
                 }
             )
@@ -359,7 +393,6 @@ fun SensorConfig(modifier: Modifier = Modifier,
                     onClick = {
                         try {
                             changePositionMethod(method)
-                            currentMethod = method
                         } catch (e: Exception) {
                             Log.e("MethodChangeError",
                                 "Failed to change method for position service: ${e.message}")
@@ -380,23 +413,13 @@ fun SensorConfig(modifier: Modifier = Modifier,
                 Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
                 Slider(
                     value = positionMinTimeMs.toFloat(),
-                    steps = 60000,
-                    onValueChange = { },
+                    modifier = modifier.weight(1f),
+                    steps = 59, // 0 -> 59 steps (each +1000 increment) -> 60000
+                    enabled = (allSensorSwitchesEnabled && currentMethod != "fused"),
+                    onValueChange = { positionMinTimeMs = it.roundToInt() },
                     onValueChangeFinished = {
-                        if (currentMethod != "fused") {
-                            unregisterLocationListener(
-                                locationManager,
-                                locationListener,
-                                currentMethod
-                            )
-                            registerLocationListener(
-                                locationManager,
-                                locationListener,
-                                currentMethod
-                            )
-                        } else {
-                            TODO()
-                        }
+                        unregisterLocationListener(currentMethod)
+                        registerLocationListener(currentMethod)
                     },
                     valueRange = 0f..60000f
                 )
@@ -404,26 +427,55 @@ fun SensorConfig(modifier: Modifier = Modifier,
 
             Row {
                 Text(text = "Minimum distance in m between updates: $positionDistanceM")
-                Slider(value = positionMinTimeMs.toFloat(),
-                    steps = 100,
-                    onValueChange = { },
+                Slider(
+                    value = positionDistanceM.toFloat(),
+                    modifier = modifier.weight(1f),
+                    steps = 99, // 0 -> 99 steps (each +1 increment) -> 100
+                    enabled = (allSensorSwitchesEnabled && currentMethod != "fused"),
+                    onValueChange = { positionDistanceM = it.roundToInt().toFloat() },
                     onValueChangeFinished = {
-                        if (currentMethod != "fused") {
-                            unregisterLocationListener(
-                                locationManager,
-                                locationListener,
-                                currentMethod
-                            )
-                            registerLocationListener(
-                                locationManager,
-                                locationListener,
-                                currentMethod
-                            )
-                        } else {
-                            TODO()
-                        }
+                        unregisterLocationListener(currentMethod)
+                        registerLocationListener(currentMethod)
                     },
                     valueRange = 0f..100f)
+            }
+
+            Row {
+                Text(text = "Position priority: $positionPriority")
+                Slider(
+                    value = positionPriority.toFloat(),
+                    modifier = modifier.weight(1f),
+                    steps = 4, // 100 -> step -> step -> step -> step -> 105
+                    enabled = (allSensorSwitchesEnabled && currentMethod == "fused"),
+                    onValueChange = { newValue ->
+                        positionPriority = when {
+                            newValue <= 100f -> Priority.PRIORITY_HIGH_ACCURACY // 100
+                            newValue <= 102f -> Priority.PRIORITY_BALANCED_POWER_ACCURACY // 102
+                            newValue <= 104f -> Priority.PRIORITY_LOW_POWER // 104
+                            else -> Priority.PRIORITY_PASSIVE // 105
+                        }
+                    },
+                    onValueChangeFinished = {
+                        unregisterLocationListener(currentMethod)
+                        registerLocationListener(currentMethod)
+                    },
+                    valueRange = 100f..105f) // 103 and 101 do not exist
+            }
+
+            Row {
+                Text(text = "Position interval in ms: $positionIntervalMs")
+                Slider(
+                    value = positionIntervalMs.toFloat(),
+                    modifier = modifier.weight(1f),
+                    steps = 199, // 0 -> 199 steps (each +100 increment) -> 20000
+                    enabled = (allSensorSwitchesEnabled && currentMethod == "fused"),
+                    onValueChange = { positionIntervalMs = it.roundToInt() },
+                    onValueChangeFinished = {
+                        unregisterLocationListener(currentMethod)
+                        registerLocationListener(currentMethod)
+                    },
+                    valueRange = 0f..20000f
+                )
             }
         }
     }
