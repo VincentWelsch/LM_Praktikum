@@ -14,12 +14,14 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.collection.arrayMapOf
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -36,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.praktikum1.ui.theme.Praktikum1Theme
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -83,24 +86,28 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // Get requested permissions from AndroidManifest.xml
-        val packageInfo = packageManager.getPackageInfo(packageName,
-            PackageManager.GET_PERMISSIONS)
-        val requiredPermissions: Array<String> = packageInfo.requestedPermissions ?: emptyArray()
+        try {
+            val packageInfo = packageManager.getPackageInfo(packageName,
+                PackageManager.GET_PERMISSIONS)
+            val requiredPermissions: Array<String> = packageInfo.requestedPermissions ?: emptyArray()
 
-        // Check if all permissions were granted
-        val deniedPermissions = emptySet<String>().toMutableSet()
-        for (permission in requiredPermissions) {
-            if (ContextCompat.checkSelfPermission(applicationContext, permission) ==
-                PackageManager.PERMISSION_DENIED) {
-                deniedPermissions += permission
+            // Check if all permissions were granted
+            val deniedPermissions = emptySet<String>().toMutableSet()
+            for (permission in requiredPermissions) {
+                if (ContextCompat.checkSelfPermission(applicationContext, permission) ==
+                    PackageManager.PERMISSION_DENIED) {
+                    deniedPermissions += permission
+                }
             }
-        }
 
-        // Request denied permissions
-        if (deniedPermissions.isNotEmpty()) {
-            requestPermissions(deniedPermissions.toTypedArray(),0)
-        } else {
-            startApplication()
+            // Request denied permissions
+            if (deniedPermissions.isNotEmpty()) {
+                requestPermissions(deniedPermissions.toTypedArray(),0)
+            } else {
+                startApplication()
+            }
+        } catch (e: Exception) {
+            Log.e("PermissionError", "Failed to get permissions: ${e.message}")
         }
     }
 }
@@ -114,7 +121,18 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
-    Column {
+    Column(
+        modifier = Modifier
+            .padding(20.dp)
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        // Test output
+        Row { Text("x: ${accelData[0]} y: ${accelData[1]} z: ${accelData[2]}") }
+        Row { Text("x: ${gyroData[0]} y: ${gyroData[1]} z: ${gyroData[2]}") }
+        Row { Text("x: ${magnetData[0]} y: ${magnetData[1]} z: ${magnetData[2]}") }
+        Row { Text("longitude: ${positionData[0]} latitude: ${positionData[1]}") }
+
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
@@ -123,7 +141,7 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
             onMagnetDataChange = { magnetData = it },
             onPositionDataChange = { positionData = it })
 
-        TODO("Separate composable for Data Storage and Data Visualisation")
+        // "Separate composable for Data Storage and Data Visualisation"
     }
 }
 
@@ -313,169 +331,317 @@ fun SensorConfig(modifier: Modifier = Modifier,
     })
     Text(text = "Enable data collection")
 
-    Column {
-        // Checkboxes for individual sensors
-        val sensorNames = arrayOf("Accelerometer", "Gyroscope", "Magnetometer")
-        val sensorChecked = arrayOf(accelChecked, gyroChecked, magnetChecked)
-        val sensorListeners= arrayOf(accelListener, gyroListener, magnetListener)
-        val sensorTypes = arrayOf(Sensor.TYPE_ACCELEROMETER, Sensor.TYPE_GYROSCOPE,
-            Sensor.TYPE_MAGNETIC_FIELD)
-        val sensorDelays = arrayOf(accelDelay, gyroDelay, magnetDelay)
-        for (i in 0..2) {
-            Row {
-                Checkbox(
-                    checked = sensorChecked[i],
-                    onCheckedChange = { checked ->
-                        if (checked) {
-                            registerSensorLister(
-                                sensorListeners[i],
-                                sensorTypes[i],
-                                sensorDelays[i]
+    // Checkboxes for individual sensors
+    Column { // Checkboxes
+        Row { // Accelerometer
+            Column {
+                Row { // Checkbox
+                    Checkbox(
+                        checked = accelChecked,
+                        enabled = allSensorSwitchesEnabled,
+                        onCheckedChange = { checked ->
+                            Log.d("CheckboxChange", "Accelerometer checkbox changed: $checked")
+                            accelChecked = checked
+                            if (checked) {
+                                registerSensorLister(
+                                    accelListener,
+                                    Sensor.TYPE_ACCELEROMETER,
+                                    accelDelay
+                                )
+                            } else {
+                                unregisterSensorListener(accelListener)
+                            }
+                        }
+                    )
+                    Text(text = "Accelerometer")
+                }
+                Row {
+                    Column { // Delay slider
+                        Row {
+                            Text(text = "Accelerometer delay: $accelDelay")
+                        }
+                        Row {
+                            Slider(
+                                value = accelDelay.toFloat(),
+                                enabled = accelChecked,
+                                modifier = modifier.weight(1f),
+                                // supposedly helps with less jumpy sliders when the text length changes
+                                steps = 2, // 0 -> step -> step -> 3
+                                onValueChange = { accelDelay = it.roundToInt() },
+                                // it.toInt was recommended to prevent recomposes with each fractional change
+                                /* changed to it.roundToInt because testing showed that some steps are
+                                 * not rounded properly
+                                 * used Slider with range 0..60000 and 59 steps (each +1000 increment)
+                                 * at a certain interval got sequences like 52000 -> 52999 -> 54000
+                                 */
+                                onValueChangeFinished = {
+                                    unregisterSensorListener(accelListener)
+                                    registerSensorLister(
+                                        accelListener,
+                                        Sensor.TYPE_ACCELEROMETER,
+                                        accelDelay
+                                    )
+                                },
+                                valueRange = SensorManager
+                                    .SENSOR_DELAY_FASTEST.toFloat()..SensorManager.SENSOR_DELAY_NORMAL.toFloat()
                             )
-                        } else {
-                            unregisterSensorListener(sensorListeners[i])
                         }
                     }
-                )
-                Text(text = sensorNames[i])
+                }
             }
         }
 
-        // Sliders for individual sensor delays
-        for (i in 0..2) {
-            Row {
-                Text(text = "${sensorNames[i]} delay: ${sensorDelays[i]}")
-                Slider(
-                    value = sensorDelays[i].toFloat(),
-                    modifier = modifier.weight(1f),
-                        // supposedly helps with less jumpy sliders when the text length changes
-                    steps = 2, // 0 -> step -> step -> 3
-                    onValueChange = { sensorDelays[i] = it.roundToInt() },
-                        // it.toInt was recommended to prevent recomposes with each fractional change
-                        /* changed to it.roundToInt because testing showed that some steps are
-                         * not rounded properly
-                         * used Slider with range 0..60000 and 59 steps (each +1000 increment)
-                         * at a certain interval got sequences like 52000 -> 52999 -> 54000
-                         */
-                    onValueChangeFinished = {
-                        unregisterSensorListener(sensorListeners[i])
-                        registerSensorLister(sensorListeners[i],
-                            sensorTypes[i], sensorDelays[i])
-                    },
-                    valueRange = SensorManager
-                        .SENSOR_DELAY_FASTEST.toFloat()..SensorManager.SENSOR_DELAY_NORMAL.toFloat()
-                )
+        Row { // Gyroscope
+            Column {
+                Row { // Checkbox
+                    Checkbox(
+                        checked = gyroChecked,
+                        enabled = allSensorSwitchesEnabled,
+                        onCheckedChange = { checked ->
+                            gyroChecked = checked
+                            if (checked) {
+                                registerSensorLister(
+                                    gyroListener,
+                                    Sensor.TYPE_GYROSCOPE,
+                                    gyroDelay
+                                )
+                            } else {
+                                unregisterSensorListener(gyroListener)
+                            }
+                        }
+                    )
+                    Text(text = "Gyroscope")
+                }
+                Row {
+                    Column { // Delay slider
+                        Row {
+                            Text(text = "Gyroscope delay: $gyroDelay")
+                        }
+                        Row {
+                            Slider(
+                                value = gyroDelay.toFloat(),
+                                enabled = gyroChecked,
+                                modifier = modifier.weight(1f),
+                                steps = 2, // 0 -> step -> step -> 3
+                                onValueChange = { gyroDelay = it.roundToInt() },
+                                onValueChangeFinished = {
+                                    unregisterSensorListener(gyroListener)
+                                    registerSensorLister(
+                                        gyroListener,
+                                        Sensor.TYPE_GYROSCOPE,
+                                        gyroDelay
+                                    )
+                                },
+                                valueRange = SensorManager
+                                    .SENSOR_DELAY_FASTEST.toFloat()..SensorManager.SENSOR_DELAY_NORMAL.toFloat()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Row { // Magnetometer
+            Column {
+                Row { // Checkbox
+                    Checkbox(
+                        checked = magnetChecked,
+                        enabled = allSensorSwitchesEnabled,
+                        onCheckedChange = { checked ->
+                            magnetChecked = checked
+                            if (checked) {
+                                registerSensorLister(
+                                    magnetListener,
+                                    Sensor.TYPE_MAGNETIC_FIELD,
+                                    magnetDelay
+                                )
+                            } else {
+                                unregisterSensorListener(magnetListener)
+                            }
+                        }
+                    )
+                    Text(text = "Magnetometer")
+                }
+                Row {
+                    Column { // Delay slider
+                        Row {
+                            Text(text = "Magnetometer delay: $magnetDelay")
+                        }
+                        Row {
+                            Slider(
+                                value = magnetDelay.toFloat(),
+                                enabled = magnetChecked,
+                                modifier = modifier.weight(1f),
+                                steps = 2, // 0 -> step -> step -> 3
+                                onValueChange = { magnetDelay = it.roundToInt() },
+                                onValueChangeFinished = {
+                                    unregisterSensorListener(magnetListener)
+                                    registerSensorLister(
+                                        magnetListener,
+                                        Sensor.TYPE_MAGNETIC_FIELD,
+                                        magnetDelay
+                                    )
+                                },
+                                valueRange = SensorManager
+                                    .SENSOR_DELAY_FASTEST.toFloat()..SensorManager.SENSOR_DELAY_NORMAL.toFloat()
+                            )
+                        }
+                    }
+                }
             }
         }
 
         // Checkbox for position
-        Row {
-            Checkbox(
-                checked = positionChecked,
-                enabled = allSensorSwitchesEnabled,
-                onCheckedChange = { checked ->
-                    if (checked) {
-                        registerLocationListener(currentMethod)
-                    } else {
-                        unregisterLocationListener(currentMethod)
+        Row { // Position
+            Column {
+                Row { // Checkbox
+                    Checkbox(
+                        checked = positionChecked,
+                        enabled = allSensorSwitchesEnabled,
+                        onCheckedChange = { checked ->
+                            positionChecked = checked
+                            if (checked) {
+                                registerLocationListener(currentMethod)
+                            } else {
+                                unregisterLocationListener(currentMethod)
+                            }
+                        }
+                    )
+                    Text(text = "Position")
+                }
+
+                // https://developer.android.com/develop/ui/compose/components/radio-button?hl=de
+                // Radio Buttons to choose method for determining position
+                Row {
+                    Column(modifier.selectableGroup()) {
+                        listOf(
+                            LocationManager.GPS_PROVIDER,
+                            LocationManager.NETWORK_PROVIDER,
+                            "fused"
+                        ).forEach { method ->
+                            Row(
+                                Modifier.selectable(
+                                    selected = (method == currentMethod),
+                                    onClick = {
+                                        try {
+                                            changePositionMethod(method)
+                                        } catch (e: Exception) {
+                                            Log.e(
+                                                "MethodChangeError",
+                                                "Failed to change method for position service: ${e.message}"
+                                            )
+                                        }
+                                    },
+                                    role = Role.RadioButton
+                                )
+                            ) {
+                                RadioButton(
+                                    selected = (method == currentMethod),
+                                    onClick = null,
+                                    enabled = allSensorSwitchesEnabled
+                                )
+                                Text(text = method)
+                            }
+                        }
+
+                        Row {
+                            Column {
+                                Row {
+                                    Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
+                                }
+                                Row {
+                                    Slider(
+                                        value = positionMinTimeMs.toFloat(),
+                                        modifier = modifier.weight(1f),
+                                        steps = 59, // 0 -> 59 steps (each +1000 increment) -> 60000
+                                        enabled = (positionChecked && currentMethod != "fused"),
+                                        onValueChange = { positionMinTimeMs = it.roundToInt() },
+                                        onValueChangeFinished = {
+                                            unregisterLocationListener(currentMethod)
+                                            registerLocationListener(currentMethod)
+                                        },
+                                        valueRange = 0f..60000f
+                                    )
+                                }
+                            }
+                        }
+
+                        Row {
+                            Column {
+                                Row {
+                                    Text(text = "Minimum distance in m between updates: $positionDistanceM")
+                                }
+                                Row {
+                                    Slider(
+                                        value = positionDistanceM.toFloat(),
+                                        modifier = modifier.weight(1f),
+                                        steps = 99, // 0 -> 99 steps (each +1 increment) -> 100
+                                        enabled = (positionChecked && currentMethod != "fused"),
+                                        onValueChange = {
+                                            positionDistanceM = it.roundToInt().toFloat()
+                                        },
+                                        onValueChangeFinished = {
+                                            unregisterLocationListener(currentMethod)
+                                            registerLocationListener(currentMethod)
+                                        },
+                                        valueRange = 0f..100f
+                                    )
+                                }
+                            }
+                        }
+
+                        Row {
+                            Column {
+                                Row {
+                                    Text(text = "Position priority: $positionPriority")
+                                }
+                                Row {
+                                    Slider(
+                                        value = positionPriority.toFloat(),
+                                        modifier = modifier.weight(1f),
+                                        steps = 4, // 100 -> step -> step -> step -> step -> 105
+                                        enabled = (positionChecked && currentMethod == "fused"),
+                                        onValueChange = { newValue ->
+                                            positionPriority = when {
+                                                newValue <= 100f -> Priority.PRIORITY_HIGH_ACCURACY // 100
+                                                newValue <= 102f -> Priority.PRIORITY_BALANCED_POWER_ACCURACY // 102
+                                                newValue <= 104f -> Priority.PRIORITY_LOW_POWER // 104
+                                                else -> Priority.PRIORITY_PASSIVE // 105
+                                            }
+                                        },
+                                        onValueChangeFinished = {
+                                            unregisterLocationListener(currentMethod)
+                                            registerLocationListener(currentMethod)
+                                        },
+                                        valueRange = 100f..105f
+                                    ) // 103 and 101 do not exist
+                                }
+                            }
+                        }
+
+                        Row {
+                            Column {
+                                Row {
+                                    Text(text = "Position interval in ms: $positionIntervalMs")
+                                }
+                                Row {
+                                    Slider(
+                                        value = positionIntervalMs.toFloat(),
+                                        modifier = modifier.weight(1f),
+                                        steps = 199, // 0 -> 199 steps (each +100 increment) -> 20000
+                                        enabled = (positionChecked && currentMethod == "fused"),
+                                        onValueChange = { positionIntervalMs = it.roundToInt() },
+                                        onValueChangeFinished = {
+                                            unregisterLocationListener(currentMethod)
+                                            registerLocationListener(currentMethod)
+                                        },
+                                        valueRange = 0f..20000f
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-            )
-            Text(text = "Position")
-        }
-
-        // https://developer.android.com/develop/ui/compose/components/radio-button?hl=de
-        // Radio Buttons to choose method for determining position
-        Column(modifier.selectableGroup()) {
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, "fused").forEach { method ->
-                Row(Modifier.selectable(
-                    selected = (method == currentMethod),
-                    onClick = {
-                        try {
-                            changePositionMethod(method)
-                        } catch (e: Exception) {
-                            Log.e("MethodChangeError",
-                                "Failed to change method for position service: ${e.message}")
-                        }
-                    },
-                    role = Role.RadioButton
-                )) {
-                    RadioButton(
-                        selected = (method == currentMethod),
-                        onClick = null,
-                        enabled = allSensorSwitchesEnabled
-                    )
-                    Text(text = method)
-                }
-            }
-
-            Row {
-                Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
-                Slider(
-                    value = positionMinTimeMs.toFloat(),
-                    modifier = modifier.weight(1f),
-                    steps = 59, // 0 -> 59 steps (each +1000 increment) -> 60000
-                    enabled = (allSensorSwitchesEnabled && currentMethod != "fused"),
-                    onValueChange = { positionMinTimeMs = it.roundToInt() },
-                    onValueChangeFinished = {
-                        unregisterLocationListener(currentMethod)
-                        registerLocationListener(currentMethod)
-                    },
-                    valueRange = 0f..60000f
-                )
-            }
-
-            Row {
-                Text(text = "Minimum distance in m between updates: $positionDistanceM")
-                Slider(
-                    value = positionDistanceM.toFloat(),
-                    modifier = modifier.weight(1f),
-                    steps = 99, // 0 -> 99 steps (each +1 increment) -> 100
-                    enabled = (allSensorSwitchesEnabled && currentMethod != "fused"),
-                    onValueChange = { positionDistanceM = it.roundToInt().toFloat() },
-                    onValueChangeFinished = {
-                        unregisterLocationListener(currentMethod)
-                        registerLocationListener(currentMethod)
-                    },
-                    valueRange = 0f..100f)
-            }
-
-            Row {
-                Text(text = "Position priority: $positionPriority")
-                Slider(
-                    value = positionPriority.toFloat(),
-                    modifier = modifier.weight(1f),
-                    steps = 4, // 100 -> step -> step -> step -> step -> 105
-                    enabled = (allSensorSwitchesEnabled && currentMethod == "fused"),
-                    onValueChange = { newValue ->
-                        positionPriority = when {
-                            newValue <= 100f -> Priority.PRIORITY_HIGH_ACCURACY // 100
-                            newValue <= 102f -> Priority.PRIORITY_BALANCED_POWER_ACCURACY // 102
-                            newValue <= 104f -> Priority.PRIORITY_LOW_POWER // 104
-                            else -> Priority.PRIORITY_PASSIVE // 105
-                        }
-                    },
-                    onValueChangeFinished = {
-                        unregisterLocationListener(currentMethod)
-                        registerLocationListener(currentMethod)
-                    },
-                    valueRange = 100f..105f) // 103 and 101 do not exist
-            }
-
-            Row {
-                Text(text = "Position interval in ms: $positionIntervalMs")
-                Slider(
-                    value = positionIntervalMs.toFloat(),
-                    modifier = modifier.weight(1f),
-                    steps = 199, // 0 -> 199 steps (each +100 increment) -> 20000
-                    enabled = (allSensorSwitchesEnabled && currentMethod == "fused"),
-                    onValueChange = { positionIntervalMs = it.roundToInt() },
-                    onValueChangeFinished = {
-                        unregisterLocationListener(currentMethod)
-                        registerLocationListener(currentMethod)
-                    },
-                    valueRange = 0f..20000f
-                )
             }
         }
     }
