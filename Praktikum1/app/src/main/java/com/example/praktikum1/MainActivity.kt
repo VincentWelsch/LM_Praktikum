@@ -193,6 +193,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 onAccelDataChange(event?.values!!.copyOf(3))
+                TODO("Change to call viewModel.onNewAccelData instead")
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Accelerometer", accuracy)
@@ -204,6 +205,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 onGyroDataChange(event?.values!!.copyOf(3))
+                TODO("Change to call viewModel.onNewAccelData instead")
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Gyroscope", accuracy)
@@ -215,6 +217,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 onMagnetDataChange(event?.values!!.copyOf(3))
+                TODO("Change to call viewModel.onNewAccelData instead")
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Magnetometer", accuracy)
@@ -227,6 +230,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
         LocationListener { location ->
             // IDE suggested using lambda instead of manually overriding onLocationChanged
             onPositionDataChange(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
+            TODO("Change to call viewModel.onNewAccelData instead")
         }
     }
 
