@@ -121,10 +121,6 @@ fun Application(sensorManager: SensorManager,
                 locationManager: LocationManager,
                 viewModel: SensorViewModel) {
     val sensorData by viewModel.processedData.collectAsState()
-    /* var accelData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var gyroData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var magnetData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) }*/
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
