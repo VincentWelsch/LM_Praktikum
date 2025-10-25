@@ -30,6 +30,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,11 +56,12 @@ class MainActivity : ComponentActivity() {
     private fun startApplication() {
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val viewModel = SensorViewModel()
         enableEdgeToEdge()
         setContent {
             Praktikum1Theme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Application(sensorManager, locationManager)
+                    Application(sensorManager, locationManager, viewModel)
                     innerPadding
                 }
             }
@@ -115,11 +117,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Application(sensorManager: SensorManager, locationManager: LocationManager) {
-    var accelData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
+fun Application(sensorManager: SensorManager,
+                locationManager: LocationManager,
+                viewModel: SensorViewModel) {
+    val sensorData by viewModel.processedData.collectAsState()
+    /* var accelData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
     var gyroData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
     var magnetData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) }
+    var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) }*/
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
@@ -132,13 +137,23 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
-            onAccelDataChange = { accelData = it },
+            viewModel = viewModel,
+            /* onAccelDataChange = { accelData = it },
             onGyroDataChange = { gyroData = it },
             onMagnetDataChange = { magnetData = it },
-            onPositionDataChange = { positionData = it })
+            onPositionDataChange = { positionData = it }*/)
 
         // Separate composable for Data Storage and Data Visualisation here!
-        TestTextOutput(accelData, gyroData, magnetData, positionData)
+        TestTextOutput(sensorData.accelData,
+            sensorData.gyroData,
+            sensorData.magnetData,
+            sensorData.positionData)
+    }
+    DisposableEffect(Unit) {
+        viewModel.startProcessing()
+        onDispose {
+            viewModel.stopProcessing()
+        }
     }
 }
 
@@ -147,10 +162,11 @@ fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
-                 onAccelDataChange: (FloatArray) -> Unit,
+                 viewModel: SensorViewModel,
+                 /*onAccelDataChange: (FloatArray) -> Unit,
                  onGyroDataChange: (FloatArray) -> Unit,
                  onMagnetDataChange: (FloatArray) -> Unit,
-                 onPositionDataChange: (FloatArray) -> Unit) {
+                 onPositionDataChange: (FloatArray) -> Unit*/) {
     // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
     // Logic
     // Variables
@@ -192,8 +208,8 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val accelListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                onAccelDataChange(event?.values!!.copyOf(3))
-                TODO("Change to call viewModel.onNewAccelData instead")
+                // onAccelDataChange(event?.values!!.copyOf(3))
+                viewModel.onNewAccelData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Accelerometer", accuracy)
@@ -204,8 +220,8 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val gyroListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                onGyroDataChange(event?.values!!.copyOf(3))
-                TODO("Change to call viewModel.onNewAccelData instead")
+                // onGyroDataChange(event?.values!!.copyOf(3))
+                viewModel.onNewGyroData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Gyroscope", accuracy)
@@ -216,8 +232,8 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val magnetListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                onMagnetDataChange(event?.values!!.copyOf(3))
-                TODO("Change to call viewModel.onNewAccelData instead")
+                // onMagnetDataChange(event?.values!!.copyOf(3))
+                viewModel.onNewMagnetData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Magnetometer", accuracy)
@@ -229,8 +245,8 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val locationListener: LocationListener = remember {
         LocationListener { location ->
             // IDE suggested using lambda instead of manually overriding onLocationChanged
-            onPositionDataChange(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
-            TODO("Change to call viewModel.onNewAccelData instead")
+            // onPositionDataChange(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
+            viewModel.onNewPositionData(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
         }
     }
 
@@ -240,7 +256,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
             override fun onLocationResult(p0: LocationResult) {
                 super.onLocationResult(p0)
                 if (p0.lastLocation != null) {
-                    onPositionDataChange(floatArrayOf(p0.lastLocation!!.longitude.toFloat(),
+                    viewModel.onNewPositionData(floatArrayOf(p0.lastLocation!!.longitude.toFloat(),
                         p0.lastLocation!!.latitude.toFloat()))
                 }
             }
