@@ -1,4 +1,3 @@
-// In a new file: SensorViewModel.kt
 package com.example.praktikum1
 
 import android.util.Log
@@ -39,10 +38,10 @@ data class SensorDataSnapshot(
     }
 }
 
-/* SensorViewModel is a ViewModel that receives live sensor data and calculates the average
+/* DataAggregationViewModel is a ViewModel that receives live sensor data and calculates the average
 *  of every batch (currently every half second) and stores it as a snapshot in a StateFlow.
 *  To access the snapshot:
-*  - create an instance of SensorViewModel
+*  - create an instance of DataAggregationViewModel
 *  - call viewModel.startProcessing() -> here, done in DisposableEffect within Application()
 *  - in a composable, access viewModel.processedData.collectAsState() as such:
 *      val sensorData by viewModel.processedData.collectAsState()
@@ -50,7 +49,7 @@ data class SensorDataSnapshot(
 *  - though not necessary, call viewModel.stopProcessing() when disposing
 */
 
-class SensorViewModel: ViewModel() {
+class DataAggregationViewModel: ViewModel() {
     private val _processedData = MutableStateFlow(SensorDataSnapshot())
     val processedData = _processedData.asStateFlow() // Public read-only StateFlow
 

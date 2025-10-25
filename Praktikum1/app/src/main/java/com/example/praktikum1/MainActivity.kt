@@ -50,18 +50,17 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlin.math.roundToInt
-import kotlin.text.toFloat
 
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
 
-        val viewModel = SensorViewModel()
-        /* SensorViewModel is a ViewModel that receives live sensor data and calculates the average
+        val viewModel = DataAggregationViewModel()
+        /* DataAggregationViewModel is a ViewModel that receives live sensor data and calculates the average
         *  of every batch (currently every half second) and stores it as a snapshot in a StateFlow.
         *  To access the snapshot:
-        *  - create an instance of SensorViewModel
+        *  - create an instance of DataAggregationViewModel
         *  - call viewModel.startProcessing() -> here, done in DisposableEffect within Application()
         *  - in a composable, access viewModel.processedData.collectAsState() as such:
         *      val sensorData by viewModel.processedData.collectAsState()
@@ -131,7 +130,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun Application(sensorManager: SensorManager,
                 locationManager: LocationManager,
-                viewModel: SensorViewModel) {
+                viewModel: DataAggregationViewModel) {
     val sensorData by viewModel.processedData.collectAsState()
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
@@ -166,7 +165,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
-                 viewModel: SensorViewModel) {
+                 viewModel: DataAggregationViewModel) {
     // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
     // Logic
     // Variables
@@ -358,6 +357,11 @@ fun SensorConfig(modifier: Modifier = Modifier,
                 magnetChecked = false
                 positionChecked = false
                 allSensorSwitchesEnabled = false
+                // note: changing the variables does not trigger onCheckedChange()
+                unregisterSensorListener(accelListener)
+                unregisterSensorListener(gyroListener)
+                unregisterSensorListener(magnetListener)
+                unregisterLocationListener(currentMethod)
             }
         })
         Text(text = "Enable data collection")
