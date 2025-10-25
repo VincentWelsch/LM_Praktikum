@@ -56,7 +56,19 @@ class MainActivity : ComponentActivity() {
     private fun startApplication() {
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+
         val viewModel = SensorViewModel()
+        /* SensorViewModel is a ViewModel that receives live sensor data and calculates the average
+        *  of every batch (currently every half second) and stores it as a snapshot in a StateFlow.
+        *  To access the snapshot:
+        *  - create an instance of SensorViewModel
+        *  - call viewModel.startProcessing() -> here, done in DisposableEffect within Application()
+        *  - in a composable, access viewModel.processedData.collectAsState() as such:
+        *      val sensorData by viewModel.processedData.collectAsState()
+        *      Text(text = "x: ${sensorData.accelData[0]}..."}
+        *  - though not necessary, call viewModel.stopProcessing() when disposing
+        */
+
         enableEdgeToEdge()
         setContent {
             Praktikum1Theme {
@@ -133,7 +145,7 @@ fun Application(sensorManager: SensorManager,
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
-            viewModel = viewModel)
+            viewModel = viewModel) // relied on by sensor listeners for viewModel.onNew...Data()
 
         // Separate composable for Data Storage and Data Visualisation here!
         TestTextOutput(sensorData.accelData,

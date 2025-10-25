@@ -39,6 +39,17 @@ data class SensorDataSnapshot(
     }
 }
 
+/* SensorViewModel is a ViewModel that receives live sensor data and calculates the average
+*  of every batch (currently every half second) and stores it as a snapshot in a StateFlow.
+*  To access the snapshot:
+*  - create an instance of SensorViewModel
+*  - call viewModel.startProcessing() -> here, done in DisposableEffect within Application()
+*  - in a composable, access viewModel.processedData.collectAsState() as such:
+*      val sensorData by viewModel.processedData.collectAsState()
+*      Text(text = "x: ${sensorData.accelData[0]}..."}
+*  - though not necessary, call viewModel.stopProcessing() when disposing
+*/
+
 class SensorViewModel: ViewModel() {
     private val _processedData = MutableStateFlow(SensorDataSnapshot())
     val processedData = _processedData.asStateFlow() // Public read-only StateFlow
@@ -48,7 +59,8 @@ class SensorViewModel: ViewModel() {
     private val gyroDataBuffer = mutableListOf<FloatArray>()
     private val magnetDataBuffer = mutableListOf<FloatArray>()
     private val positionDataBuffer = mutableListOf<FloatArray>()
-    // Public methods for adding data
+
+    // Public methods for adding data -> used by sensor listeners
     fun onNewAccelData(data: FloatArray) = synchronized(accelDataBuffer) { accelDataBuffer.add(data) }
     fun onNewGyroData(data: FloatArray) = synchronized(gyroDataBuffer) { gyroDataBuffer.add(data) }
     fun onNewMagnetData(data: FloatArray) = synchronized(magnetDataBuffer) { magnetDataBuffer.add(data) }
@@ -69,7 +81,7 @@ class SensorViewModel: ViewModel() {
         }
     }
 
-    // Called in Application when switch is toggled off
+    // Called in Application to stop processing (maybe also when switch is toggled off?)
     fun stopProcessing() {
         processingJob?.cancel()
         processingJob = null
@@ -99,7 +111,7 @@ class SensorViewModel: ViewModel() {
         )
     }
 
-    // Generic processing function (averages the data)
+    // Generic processing function for all buffers (averages the data)
     private fun processBuffer(buffer: MutableList<FloatArray>): FloatArray? {
         val readings = synchronized(buffer) {
             if (buffer.isEmpty()) {
