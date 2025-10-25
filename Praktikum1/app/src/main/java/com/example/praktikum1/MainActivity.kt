@@ -137,11 +137,7 @@ fun Application(sensorManager: SensorManager,
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
-            viewModel = viewModel,
-            /* onAccelDataChange = { accelData = it },
-            onGyroDataChange = { gyroData = it },
-            onMagnetDataChange = { magnetData = it },
-            onPositionDataChange = { positionData = it }*/)
+            viewModel = viewModel)
 
         // Separate composable for Data Storage and Data Visualisation here!
         TestTextOutput(sensorData.accelData,
@@ -162,11 +158,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
-                 viewModel: SensorViewModel,
-                 /*onAccelDataChange: (FloatArray) -> Unit,
-                 onGyroDataChange: (FloatArray) -> Unit,
-                 onMagnetDataChange: (FloatArray) -> Unit,
-                 onPositionDataChange: (FloatArray) -> Unit*/) {
+                 viewModel: SensorViewModel) {
     // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
     // Logic
     // Variables
@@ -187,11 +179,9 @@ fun SensorConfig(modifier: Modifier = Modifier,
     var positionIntervalMs: Int by remember { mutableIntStateOf(10000) }
 
     // Moved to Application() to make accessible to other composables
-    // SensorConfig() now uses "on...Change" lambdas to update values
-    /* var accelData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var gyroData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var magnetData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) } */
+    // SensorConfig() no longer uses accelData, ... in the component to make it accessible from outside
+    // SensorConfig() no longer uses "on...Change" lambdas to update values
+    // SensorConfig() now uses viewModel to update values and keep track
 
     fun generalAccuracyChanged(sensor: String, accuracy: Int) {
         if (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM) {
@@ -208,7 +198,6 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val accelListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                // onAccelDataChange(event?.values!!.copyOf(3))
                 viewModel.onNewAccelData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -220,7 +209,6 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val gyroListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                // onGyroDataChange(event?.values!!.copyOf(3))
                 viewModel.onNewGyroData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -232,7 +220,6 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val magnetListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                // onMagnetDataChange(event?.values!!.copyOf(3))
                 viewModel.onNewMagnetData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -244,8 +231,6 @@ fun SensorConfig(modifier: Modifier = Modifier,
     // Init position event listeners
     val locationListener: LocationListener = remember {
         LocationListener { location ->
-            // IDE suggested using lambda instead of manually overriding onLocationChanged
-            // onPositionDataChange(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
             viewModel.onNewPositionData(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
         }
     }

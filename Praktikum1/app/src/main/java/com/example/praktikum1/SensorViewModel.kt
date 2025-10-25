@@ -1,6 +1,7 @@
 // In a new file: SensorViewModel.kt
 package com.example.praktikum1
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -88,7 +89,13 @@ class SensorViewModel: ViewModel() {
             accelData = newAccel ?: FloatArray(3),
             gyroData = newGyro ?: FloatArray(3),
             magnetData = newMagnet ?: FloatArray(3),
-            positionData = newPosition ?: FloatArray(2)
+            positionData = newPosition ?: _processedData.value.positionData,
+            /* Position does not always update (depending on minTimeMs and minDistanceM),
+             * which causes positionData to be [0.0f, 0.0f] if no new data is sent.
+             *
+             * accelData, gyroData, and magnetData do not have this problem, as they use constants
+             * which are below 0.5 s delay.
+             */
         )
     }
 
@@ -105,10 +112,10 @@ class SensorViewModel: ViewModel() {
         if (readings.isEmpty()) {
             return null
         }
-
+        Log.d("SensorViewModel", "Processing ${readings.size} readings")
         val elementCount = readings.first().size
         val average = FloatArray(elementCount)
-        for (i in 0 .. elementCount) {
+        for (i in 0 .. elementCount-1) {
             average[i] = readings.map { it[i] }.average().toFloat()
             // average() already gets avg of all elements in a list or array (returns as Double)
             // map to get lists of all x, of all y, and of all z (or longitude and latitude)
