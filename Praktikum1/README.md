@@ -3,9 +3,8 @@ Orientierung an Tutorium 1
 Toggle für alle Sensoren
 Toggle für jeweilige Datentypen -> für Position drei Radio Boxen
 
-Textfeld und/oder Graphen
-Map?
-
+Textfeld und/oder Graphen Map?
+-
 Frage: Alles untereinander oder Bereiche? Zum Beispiel eine Kachel 'Settings' für die Toggles.
 
 # Sensoren
@@ -39,4 +38,4 @@ Orientierung an Berechtigungen aus Tutorium 1
 Orientierung an Tutorium 3 und 4
 Seite 13 in Tutorium 2 zur Verarbeitung (Zursammenfassung/Transformation) von Sensordaten (bspw. Bildung des Mittelwerts für x über einen Zeitraum)
 Textform oder Graphen für Beschleunigung, Gyroskop, Magnometer und virtuelle Sonsoren
-OpenStreetMaps/Google Maps für Positionsdaten? (oder nur 'Longitude' und 'Latitude' als Text)
+OpenStreetMaps für Positionsdaten 
