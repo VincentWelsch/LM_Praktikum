@@ -17,6 +17,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -50,6 +51,23 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlin.math.roundToInt
+
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import co.yml.charts.axis.AxisData
+import co.yml.charts.common.model.Point
+import co.yml.charts.ui.linechart.model.GridLines
+import co.yml.charts.ui.linechart.model.IntersectionPoint
+import co.yml.charts.ui.linechart.model.Line
+import co.yml.charts.ui.linechart.model.LineChartData
+import co.yml.charts.ui.linechart.model.LinePlotData
+import co.yml.charts.ui.linechart.model.LineStyle
+import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
+import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
+import co.yml.charts.ui.linechart.model.ShadowUnderLine
+import kotlinx.coroutines.delay
+
 
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
@@ -151,6 +169,11 @@ fun Application(sensorManager: SensorManager,
             sensorData.gyroData,
             sensorData.magnetData,
             sensorData.positionData)
+        ChartAcc(
+            modifier =Modifier
+                .padding(20.dp)
+                .fillMaxWidth(),
+            sensorData = sensorData)
     }
     DisposableEffect(Unit) {
         viewModel.startProcessing()
@@ -160,6 +183,73 @@ fun Application(sensorManager: SensorManager,
     }
 }
 
+// Graphen
+@Composable
+fun ChartAcc(modifier: Modifier, sensorData: SensorData){
+    val context = LocalContext.current
+    val steps = 20
+    var pointsData by remember {
+        mutableStateOf(
+            listOf(
+                Point(0f, -10f), // Dummy für Skala
+                Point(0f, 10f)   // Dummy für Skala
+            )
+        )
+    }
+    val lineChartData = remember(pointsData) {
+
+        // Wir erstellen eine neue Liste, die nur die letzten 30 Punkte enthält
+        val visiblePoints = pointsData.takeLast(30)
+
+        val xAxisData = AxisData.Builder()
+            .axisStepSize(100.dp)
+            .backgroundColor(Color.Blue)
+            .steps(maxOf(2, visiblePoints.size))
+            // KORREKTE BESCHRIFTUNG: Holt den X-Wert vom sichtbaren Punkt
+            .labelData { i ->
+                visiblePoints.getOrNull(i)?.x?.toInt()?.toString() ?: ""
+            }
+            .labelAndAxisLinePadding(15.dp)
+            .build()
+
+        val yAxisData = AxisData.Builder()
+            .steps(steps)
+            .backgroundColor(Color.Red)
+            .labelAndAxisLinePadding(20.dp)
+            .labelData { i -> (-10 + i).toString() }.build()
+
+        LineChartData (
+            linePlotData = LinePlotData(
+                lines = listOf(
+                    Line(
+                        // Wir übergeben nur die sichtbaren Punkte zum Zeichnen
+                        dataPoints = visiblePoints,
+                        LineStyle(),
+                        IntersectionPoint(),
+                        SelectionHighlightPoint(),
+                        ShadowUnderLine(),
+                        SelectionHighlightPopUp()
+                    )
+
+                ),
+            ),
+            xAxisData = xAxisData,
+            yAxisData = yAxisData,
+            gridLines = GridLines(),
+            backgroundColor = Color.White
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            // Magnitude Berechnen und als Punkt dem Array hinzufügen
+            pointsData = pointsData + Point(pointsData.size.toFloat(),kotlin.math.sqrt((sensorData.accelData[0] * sensorData.accelData[0] + sensorData.accelData[1] * sensorData.accelData[1] + sensorData.accelData[2] * sensorData.accelData[2]).toDouble()).toFloat()
+            )
+
+            delay(1000) // Jede Sekunde wird ein Punkt hinzugefügt und der
+        }
+    }
+}
 @Composable
 fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
