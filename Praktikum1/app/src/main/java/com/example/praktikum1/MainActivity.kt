@@ -30,6 +30,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,11 +56,24 @@ class MainActivity : ComponentActivity() {
     private fun startApplication() {
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+
+        val viewModel = DataAggregationViewModel()
+        /* DataAggregationViewModel is a ViewModel that receives live sensor data and calculates the average
+        *  of every batch (currently every half second) and stores it as a snapshot in a StateFlow.
+        *  To access the snapshot:
+        *  - create an instance of DataAggregationViewModel
+        *  - call viewModel.startProcessing() -> here, done in DisposableEffect within Application()
+        *  - in a composable, access viewModel.processedData.collectAsState() as such:
+        *      val sensorData by viewModel.processedData.collectAsState()
+        *      Text(text = "x: ${sensorData.accelData[0]}..."}
+        *  - though not necessary, call viewModel.stopProcessing() when disposing
+        */
+
         enableEdgeToEdge()
         setContent {
             Praktikum1Theme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Application(sensorManager, locationManager)
+                    Application(sensorManager, locationManager, viewModel)
                     innerPadding
                 }
             }
@@ -115,11 +129,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Application(sensorManager: SensorManager, locationManager: LocationManager) {
-    var accelData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var gyroData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var magnetData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) }
+fun Application(sensorManager: SensorManager,
+                locationManager: LocationManager,
+                viewModel: DataAggregationViewModel) {
+    val sensorData by viewModel.processedData.collectAsState()
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
@@ -133,31 +146,37 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
-            onAccelDataChange = { accelData = it },
-            onGyroDataChange = { gyroData = it },
-            onMagnetDataChange = { magnetData = it },
-            onPositionDataChange = { positionData = it },
+            viewModel = viewModel, // relied on by sensor listeners for viewModel.onNew...Data()
             onNewSample = {
                 val sample = SensorSample(
                     timestamp = System.currentTimeMillis(),
-                    accelX = accelData.getOrNull(0) ?: 0f,
-                    accelY = accelData.getOrNull(1) ?: 0f,
-                    accelZ = accelData.getOrNull(2) ?: 0f,
-                    gyroX = gyroData.getOrNull(0) ?: 0f,
-                    gyroY = gyroData.getOrNull(1) ?: 0f,
-                    gyroZ = gyroData.getOrNull(2) ?: 0f,
-                    magnetX = magnetData.getOrNull(0) ?: 0f,
-                    magnetY = magnetData.getOrNull(1) ?: 0f,
-                    magnetZ = magnetData.getOrNull(2) ?: 0f,
-                    lat = positionData.getOrNull(0)?.toDouble(),
-                    lon = positionData.getOrNull(1)?.toDouble()
+                    accelX = sensorData.accelData.getOrNull(0) ?: 0f,
+                    accelY = sensorData.accelData.getOrNull(1) ?: 0f,
+                    accelZ = sensorData.accelData.getOrNull(2) ?: 0f,
+                    gyroX = sensorData.gyroData.getOrNull(0) ?: 0f,
+                    gyroY = sensorData.gyroData.getOrNull(1) ?: 0f,
+                    gyroZ = sensorData.gyroData.getOrNull(2) ?: 0f,
+                    magnetX = sensorData.magnetData.getOrNull(0) ?: 0f,
+                    magnetY = sensorData.magnetData.getOrNull(1) ?: 0f,
+                    magnetZ = sensorData.magnetData.getOrNull(2) ?: 0f,
+                    lat = sensorData.positionData.getOrNull(0)?.toDouble(),
+                    lon = sensorData.positionData.getOrNull(1)?.toDouble()
                 )
                 storageViewModel.addSample(sample)
             }
         )
 
         // Separate composable for Data Visualisation here!
-        TestTextOutput(accelData, gyroData, magnetData, positionData)
+        TestTextOutput(sensorData.accelData,
+            sensorData.gyroData,
+            sensorData.magnetData,
+            sensorData.positionData)
+    }
+    DisposableEffect(Unit) {
+        viewModel.startProcessing()
+        onDispose {
+            viewModel.stopProcessing()
+        }
     }
 }
 
@@ -166,10 +185,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
-                 onAccelDataChange: (FloatArray) -> Unit,
-                 onGyroDataChange: (FloatArray) -> Unit,
-                 onMagnetDataChange: (FloatArray) -> Unit,
-                 onPositionDataChange: (FloatArray) -> Unit,
+                 viewModel: DataAggregationViewModel,
                  onNewSample: (() -> Unit)? = null) {
     // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
     // Logic
@@ -191,11 +207,9 @@ fun SensorConfig(modifier: Modifier = Modifier,
     var positionIntervalMs: Int by remember { mutableIntStateOf(10000) }
 
     // Moved to Application() to make accessible to other composables
-    // SensorConfig() now uses "on...Change" lambdas to update values
-    /* var accelData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var gyroData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var magnetData: FloatArray by remember { mutableStateOf(FloatArray(3)) }
-    var positionData: FloatArray by remember { mutableStateOf(FloatArray(2)) } */
+    // SensorConfig() no longer uses accelData, ... in the component to make it accessible from outside
+    // SensorConfig() no longer uses "on...Change" lambdas to update values
+    // SensorConfig() now uses viewModel to update values and keep track
 
     fun generalAccuracyChanged(sensor: String, accuracy: Int) {
         if (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM) {
@@ -212,7 +226,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val accelListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                onAccelDataChange(event?.values!!.copyOf(3))
+                viewModel.onNewAccelData(event?.values!!.copyOf(3))
                 onNewSample?.invoke()
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -224,7 +238,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val gyroListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                onGyroDataChange(event?.values!!.copyOf(3))
+                viewModel.onNewGyroData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Gyroscope", accuracy)
@@ -235,7 +249,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
     val magnetListener = remember {
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
-                onMagnetDataChange(event?.values!!.copyOf(3))
+                viewModel.onNewMagnetData(event?.values!!.copyOf(3))
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Magnetometer", accuracy)
@@ -246,8 +260,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
     // Init position event listeners
     val locationListener: LocationListener = remember {
         LocationListener { location ->
-            // IDE suggested using lambda instead of manually overriding onLocationChanged
-            onPositionDataChange(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
+            viewModel.onNewPositionData(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
         }
     }
 
@@ -257,7 +270,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
             override fun onLocationResult(p0: LocationResult) {
                 super.onLocationResult(p0)
                 if (p0.lastLocation != null) {
-                    onPositionDataChange(floatArrayOf(p0.lastLocation!!.longitude.toFloat(),
+                    viewModel.onNewPositionData(floatArrayOf(p0.lastLocation!!.longitude.toFloat(),
                         p0.lastLocation!!.latitude.toFloat()))
                 }
             }
@@ -366,6 +379,11 @@ fun SensorConfig(modifier: Modifier = Modifier,
                 magnetChecked = false
                 positionChecked = false
                 allSensorSwitchesEnabled = false
+                // note: changing the variables does not trigger onCheckedChange()
+                unregisterSensorListener(accelListener)
+                unregisterSensorListener(gyroListener)
+                unregisterSensorListener(magnetListener)
+                unregisterLocationListener(currentMethod)
             }
         })
         Text(text = "Enable data collection")
