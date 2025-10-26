@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.praktikum1.ui.theme.Praktikum1Theme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -49,7 +50,6 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlin.math.roundToInt
-import kotlin.text.toFloat
 
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
@@ -123,6 +123,7 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
+    val storageViewModel: StorageViewModel = viewModel(factory = StorageViewModelFactory(ctx))
     Column(
         modifier = Modifier
             .padding(20.dp)
@@ -135,9 +136,27 @@ fun Application(sensorManager: SensorManager, locationManager: LocationManager) 
             onAccelDataChange = { accelData = it },
             onGyroDataChange = { gyroData = it },
             onMagnetDataChange = { magnetData = it },
-            onPositionDataChange = { positionData = it })
+            onPositionDataChange = { positionData = it },
+            onNewSample = {
+                val sample = SensorSample(
+                    timestamp = System.currentTimeMillis(),
+                    accelX = accelData.getOrNull(0) ?: 0f,
+                    accelY = accelData.getOrNull(1) ?: 0f,
+                    accelZ = accelData.getOrNull(2) ?: 0f,
+                    gyroX = gyroData.getOrNull(0) ?: 0f,
+                    gyroY = gyroData.getOrNull(1) ?: 0f,
+                    gyroZ = gyroData.getOrNull(2) ?: 0f,
+                    magnetX = magnetData.getOrNull(0) ?: 0f,
+                    magnetY = magnetData.getOrNull(1) ?: 0f,
+                    magnetZ = magnetData.getOrNull(2) ?: 0f,
+                    lat = positionData.getOrNull(0)?.toDouble(),
+                    lon = positionData.getOrNull(1)?.toDouble()
+                )
+                storageViewModel.addSample(sample)
+            }
+        )
 
-        // Separate composable for Data Storage and Data Visualisation here!
+        // Separate composable for Data Visualisation here!
         TestTextOutput(accelData, gyroData, magnetData, positionData)
     }
 }
@@ -150,7 +169,8 @@ fun SensorConfig(modifier: Modifier = Modifier,
                  onAccelDataChange: (FloatArray) -> Unit,
                  onGyroDataChange: (FloatArray) -> Unit,
                  onMagnetDataChange: (FloatArray) -> Unit,
-                 onPositionDataChange: (FloatArray) -> Unit) {
+                 onPositionDataChange: (FloatArray) -> Unit,
+                 onNewSample: (() -> Unit)? = null) {
     // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
     // Logic
     // Variables
@@ -193,6 +213,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 onAccelDataChange(event?.values!!.copyOf(3))
+                onNewSample?.invoke()
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Accelerometer", accuracy)

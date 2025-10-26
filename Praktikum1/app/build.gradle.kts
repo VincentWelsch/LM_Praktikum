@@ -51,6 +51,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     // implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation(libs.play.services.location)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
