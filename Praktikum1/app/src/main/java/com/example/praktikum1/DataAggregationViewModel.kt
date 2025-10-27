@@ -108,6 +108,7 @@ class DataAggregationViewModel: ViewModel() {
              * which are below 0.5 s delay.
              */
         )
+        Log.d("DataAggregationViewModel", "Updated Snapshot")
     }
 
     // Generic processing function for all buffers (averages the data)
@@ -123,7 +124,7 @@ class DataAggregationViewModel: ViewModel() {
         if (readings.isEmpty()) {
             return null
         }
-        Log.d("SensorViewModel", "Processing ${readings.size} readings")
+        //Log.d("DataAggregationViewModel", "Processing ${readings.size} readings")
         val elementCount = readings.first().size
         val average = FloatArray(elementCount)
         for (i in 0 .. elementCount-1) {

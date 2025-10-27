@@ -30,6 +30,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -147,24 +148,26 @@ fun Application(sensorManager: SensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
             viewModel = viewModel, // relied on by sensor listeners for viewModel.onNew...Data()
-            onNewSample = {
-                val sample = SensorSample(
-                    timestamp = System.currentTimeMillis(),
-                    accelX = sensorData.accelData.getOrNull(0) ?: 0f,
-                    accelY = sensorData.accelData.getOrNull(1) ?: 0f,
-                    accelZ = sensorData.accelData.getOrNull(2) ?: 0f,
-                    gyroX = sensorData.gyroData.getOrNull(0) ?: 0f,
-                    gyroY = sensorData.gyroData.getOrNull(1) ?: 0f,
-                    gyroZ = sensorData.gyroData.getOrNull(2) ?: 0f,
-                    magnetX = sensorData.magnetData.getOrNull(0) ?: 0f,
-                    magnetY = sensorData.magnetData.getOrNull(1) ?: 0f,
-                    magnetZ = sensorData.magnetData.getOrNull(2) ?: 0f,
-                    lat = sensorData.positionData.getOrNull(0)?.toDouble(),
-                    lon = sensorData.positionData.getOrNull(1)?.toDouble()
-                )
-                storageViewModel.addSample(sample)
-            }
         )
+
+        LaunchedEffect(sensorData) {
+            val sample = SensorSample(
+                timestamp = System.currentTimeMillis(),
+                accelX = sensorData.accelData.getOrNull(0) ?: 0f,
+                accelY = sensorData.accelData.getOrNull(1) ?: 0f,
+                accelZ = sensorData.accelData.getOrNull(2) ?: 0f,
+                gyroX = sensorData.gyroData.getOrNull(0) ?: 0f,
+                gyroY = sensorData.gyroData.getOrNull(1) ?: 0f,
+                gyroZ = sensorData.gyroData.getOrNull(2) ?: 0f,
+                magnetX = sensorData.magnetData.getOrNull(0) ?: 0f,
+                magnetY = sensorData.magnetData.getOrNull(1) ?: 0f,
+                magnetZ = sensorData.magnetData.getOrNull(2) ?: 0f,
+                lat = sensorData.positionData.getOrNull(0)?.toDouble(),
+                lon = sensorData.positionData.getOrNull(1)?.toDouble()
+            )
+            storageViewModel.addSample(sample)
+            Log.d("DataStorage", "Added a Sample")
+        }
 
         // Separate composable for Data Visualisation here!
         TestTextOutput(sensorData.accelData,
@@ -185,8 +188,7 @@ fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
-                 viewModel: DataAggregationViewModel,
-                 onNewSample: (() -> Unit)? = null) {
+                 viewModel: DataAggregationViewModel) {
     // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
     // Logic
     // Variables
@@ -227,7 +229,6 @@ fun SensorConfig(modifier: Modifier = Modifier,
         object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 viewModel.onNewAccelData(event?.values!!.copyOf(3))
-                onNewSample?.invoke()
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
                 generalAccuracyChanged("Accelerometer", accuracy)
