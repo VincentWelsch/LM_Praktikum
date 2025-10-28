@@ -55,7 +55,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlin.math.roundToInt
 
-import androidx.compose.material3.*
+
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import co.yml.charts.axis.AxisData
@@ -148,6 +148,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+data class MagnetometerData(val xPoints: List<Point>, val yPoints: List<Point>, val zPoints: List<Point>)
 
 @Composable
 fun Application(sensorManager: SensorManager,
@@ -168,16 +169,13 @@ fun Application(sensorManager: SensorManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
             viewModel = viewModel) // relied on by sensor listeners for viewModel.onNew...Data()
 
+        DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData)
         // Separate composable for Data Storage and Data Visualisation here!
         TestTextOutput(sensorData.accelData,
             sensorData.gyroData,
             sensorData.magnetData,
             sensorData.positionData)
-        ChartAcc(
-            modifier =Modifier
-                .padding(20.dp)
-                .fillMaxWidth(),
-            sensorData = sensorData)
+
     }
     DisposableEffect(Unit) {
         viewModel.startProcessing()
@@ -187,73 +185,6 @@ fun Application(sensorManager: SensorManager,
     }
 }
 
-// Graphen
-@Composable
-fun ChartAcc(modifier: Modifier, sensorData: SensorData){
-    val context = LocalContext.current
-    val steps = 20
-    var pointsData by remember {
-        mutableStateOf(
-            listOf(
-                Point(0f, -10f), // Dummy für Skala
-                Point(0f, 10f)   // Dummy für Skala
-            )
-        )
-    }
-    val lineChartData = remember(pointsData) {
-
-        // Wir erstellen eine neue Liste, die nur die letzten 30 Punkte enthält
-        val visiblePoints = pointsData.takeLast(30)
-
-        val xAxisData = AxisData.Builder()
-            .axisStepSize(100.dp)
-            .backgroundColor(Color.Blue)
-            .steps(maxOf(2, visiblePoints.size))
-            // KORREKTE BESCHRIFTUNG: Holt den X-Wert vom sichtbaren Punkt
-            .labelData { i ->
-                visiblePoints.getOrNull(i)?.x?.toInt()?.toString() ?: ""
-            }
-            .labelAndAxisLinePadding(15.dp)
-            .build()
-
-        val yAxisData = AxisData.Builder()
-            .steps(steps)
-            .backgroundColor(Color.Red)
-            .labelAndAxisLinePadding(20.dp)
-            .labelData { i -> (-10 + i).toString() }.build()
-
-        LineChartData (
-            linePlotData = LinePlotData(
-                lines = listOf(
-                    Line(
-                        // Wir übergeben nur die sichtbaren Punkte zum Zeichnen
-                        dataPoints = visiblePoints,
-                        LineStyle(),
-                        IntersectionPoint(),
-                        SelectionHighlightPoint(),
-                        ShadowUnderLine(),
-                        SelectionHighlightPopUp()
-                    )
-
-                ),
-            ),
-            xAxisData = xAxisData,
-            yAxisData = yAxisData,
-            gridLines = GridLines(),
-            backgroundColor = Color.White
-        )
-    }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            // Magnitude Berechnen und als Punkt dem Array hinzufügen
-            pointsData = pointsData + Point(pointsData.size.toFloat(),kotlin.math.sqrt((sensorData.accelData[0] * sensorData.accelData[0] + sensorData.accelData[1] * sensorData.accelData[1] + sensorData.accelData[2] * sensorData.accelData[2]).toDouble()).toFloat()
-            )
-
-            delay(1000) // Jede Sekunde wird ein Punkt hinzugefügt und der
-        }
-    }
-}
 @Composable
 fun SensorConfig(modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
@@ -758,17 +689,16 @@ fun TestTextOutput(accelData: FloatArray,
 
 // Komponenten für das Anzeigen de Daten
 
-data class MagnetometerData(val xPoints: List<Point>, val yPoints: List<Point>, val zPoints: List<Point>)
+
 
 //TODO Implementierung in die eigentliche Oberfläche
 
-// Greetingmodul als Beispiel, wie man die Listener und Charts aufruft
+// DisplaySensorData als Beispiel, wie man die Listener und Charts aufruft
 
 @Composable
-fun Greeting(modifier: Modifier) {
-    val (accPoints, accMagnitude) = rememberAndProcessSensorDataAcc()
+fun DisplaySensorData(modifier: Modifier, accelData: FloatArray) {
+    val (accPoints, accMagnitude) = rememberAndProcessSensorDataAcc(accelData)
     val magData = rememberAndProcessSensorDataMag() // type: MagnetometerData
-
 
     Column(modifier = modifier) {
         Text(
@@ -790,43 +720,27 @@ fun Greeting(modifier: Modifier) {
 // Funktion für das Gewinnen der Daten und die Umwandlung in ein geeignetes Format für die Charts
 // TODO Hier muss nur der bereits bestehende Sensor ausgelesen werden und die Ergebnisse umgewandelt werden
 @Composable
-fun rememberAndProcessSensorDataAcc(): Pair<List<Point>, Float> {
+fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Float> {
     val ctx = LocalContext.current
-    val sensorManager = remember { ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
-
-    val accelerometer = remember { sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) }
     data class AccelData(val x: Float, val y: Float, val z: Float)
-    var magnitude by remember { mutableStateOf(0f) }
+    var magnitude by remember { mutableFloatStateOf(0f) }
     var accDataList by remember { mutableStateOf<List<AccelData>>(emptyList()) }
     var listMagnitudePoints by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
 
-    val accelerometerListener = remember {
-        object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent?) {
-                if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-                    accDataList = accDataList + AccelData(event.values[0], event.values[1], event.values[2])
-                }
-            }
-
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-        }
-    }
-
-    DisposableEffect(Unit) {
-        sensorManager.registerListener(accelerometerListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
-        onDispose {
-            sensorManager.unregisterListener(accelerometerListener)
-        }
-    }
 
     LaunchedEffect(Unit) {
+        // Erstmal Dummydaten damit es keine Fehler beim Diagram gibt
+       // accDataList = accDataList + AccelData(0f, 0f, 0f)
+
         while (true) {
-            if (accDataList.isNotEmpty()) {
-                val lastReading = accDataList.last()
-                magnitude = kotlin.math.sqrt((lastReading.x * lastReading.x + lastReading.y * lastReading.y + lastReading.z * lastReading.z).toDouble()).toFloat()
-                listMagnitudePoints = listMagnitudePoints + Point(listMagnitudePoints.size.toFloat(), magnitude)
-            }
-            delay(1000) // Damit sich das Diagramm jede Sekunde erneuert
+            // if Acc checked == True
+            // hier vlt die accDataList mit Daten aus dem ViewModel füllen, und zwar so, dass die Acc daten zu AccData konvertiert werden
+            //accDataList = accDataList + AccelData(accelData[0],accelData[1],accelData[2])
+            Log.e("TAG", "accDataList X Wert: ${accelData[0]}")
+            magnitude = kotlin.math.sqrt((accelData[0] * accelData[0] + accelData[1] * accelData[1] + accelData[2]*accelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
+            listMagnitudePoints = listMagnitudePoints + Point(listMagnitudePoints.size.toFloat(), magnitude)
+
+            delay(3000) // Damit sich das Diagramm jede Sekunde erneuert
         }
     }
 
