@@ -1,6 +1,7 @@
 package com.example.praktikum1
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -16,7 +17,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -52,6 +56,25 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlin.math.roundToInt
+
+
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import co.yml.charts.axis.AxisData
+import co.yml.charts.common.model.Point
+import co.yml.charts.ui.linechart.LineChart
+import co.yml.charts.ui.linechart.model.GridLines
+import co.yml.charts.ui.linechart.model.IntersectionPoint
+import co.yml.charts.ui.linechart.model.Line
+import co.yml.charts.ui.linechart.model.LineChartData
+import co.yml.charts.ui.linechart.model.LinePlotData
+import co.yml.charts.ui.linechart.model.LineStyle
+import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
+import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
+import co.yml.charts.ui.linechart.model.ShadowUnderLine
+import kotlinx.coroutines.delay
+import kotlin.collections.plus
+
 
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
@@ -128,6 +151,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+data class MagnetometerData(val xPoints: List<Point>, val yPoints: List<Point>, val zPoints: List<Point>)
 
 @Composable
 fun Application(sensorManager: SensorManager,
@@ -149,7 +173,7 @@ fun Application(sensorManager: SensorManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
             viewModel = viewModel, // relied on by sensor listeners for viewModel.onNew...Data()
         )
-
+        DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData)
         LaunchedEffect(sensorData) {
             val sample = SensorSample(
                 timestamp = System.currentTimeMillis(),
@@ -174,6 +198,7 @@ fun Application(sensorManager: SensorManager,
             sensorData.gyroData,
             sensorData.magnetData,
             sensorData.positionData)
+
     }
     DisposableEffect(Unit) {
         viewModel.startProcessing()
@@ -681,4 +706,210 @@ fun TestTextOutput(accelData: FloatArray,
     Row { Text("x: ${gyroData[0]} y: ${gyroData[1]} z: ${gyroData[2]}") }
     Row { Text("x: ${magnetData[0]} y: ${magnetData[1]} z: ${magnetData[2]}") }
     Row { Text("longitude: ${positionData[0]} latitude: ${positionData[1]}") }
+}
+
+
+
+// Komponenten für das Anzeigen de Daten
+
+
+
+
+// DisplaySensorData als Beispiel, wie man die Listener und Charts aufruft
+// yes
+@Composable
+fun DisplaySensorData(modifier: Modifier, accelData: FloatArray) {
+
+
+    val (accPoints, accMagnitude) = rememberAndProcessSensorDataAcc(accelData)
+    val magData = rememberAndProcessSensorDataMag() // type: MagnetometerData
+
+    Column(modifier = modifier) {
+        Text(
+            text = "Accelerometer Magnitude: $accMagnitude"
+        )
+        ChartSensor(points = accPoints, yStartValue = 6f, yEndValue = 12f)
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(text = "Magnetometer \n X: ${magData.xPoints.last().y} (Cyan) \n Y:${magData.yPoints.last().y} (Green) \n Z: ${magData.zPoints.last().y} (Magenta)")
+        MultiLineChartSensor(
+            lines = listOf(magData.xPoints, magData.yPoints, magData.zPoints),
+            yStartValue = -60f,
+            yEndValue = 60f
+        )
+    }
+}
+
+// Funktion für das Gewinnen der Daten und die Umwandlung in ein geeignetes Format für die Charts
+
+@Composable
+fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Float> {
+
+    val ctx = LocalContext.current
+    val currentAccelData by rememberUpdatedState(accelData)
+    data class AccelData(val x: Float, val y: Float, val z: Float)
+    var magnitude by remember { mutableFloatStateOf(0f) }
+
+    var listMagnitudePoints by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+
+
+
+
+    LaunchedEffect(Unit) {
+        while (true) {
+
+            // if Acc checked == True
+            // hier vlt die accDataList mit Daten aus dem ViewModel füllen, und zwar so, dass die Acc daten zu AccData konvertiert werden
+            //accDataList = accDataList + AccelData(currentAccelData[0],currentAccelData[1],currentAccelData[2])
+            Log.e("TAG", "accDataList X Wert: ${currentAccelData[0]}")
+            magnitude = kotlin.math.sqrt((currentAccelData[0] * currentAccelData[0] + currentAccelData[1] * currentAccelData[1] + currentAccelData[2]*currentAccelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
+            listMagnitudePoints = listMagnitudePoints + Point(listMagnitudePoints.size.toFloat(), magnitude)
+
+            delay(3000) // Damit sich das Diagramm jede Sekunde erneuert
+        }
+    }
+
+    return Pair(listMagnitudePoints, magnitude)
+}
+
+@Composable
+fun rememberAndProcessSensorDataMag(): MagnetometerData {
+    val ctx = LocalContext.current
+    val sensorManager = remember { ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
+
+    val magnetSensor = remember { sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) }
+    data class MagData(val x: Float, val y: Float, val z: Float)
+    var magDataList by remember { mutableStateOf<List<MagData>>(emptyList()) }
+    var listMagnitudePointsX by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    var listMagnitudePointsY by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    var listMagnitudePointsZ by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+
+    val magnetSensorListener = remember {
+        object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent?) {
+                if (event?.sensor?.type == Sensor.TYPE_MAGNETIC_FIELD) {
+                    magDataList = magDataList + MagData(event.values[0], event.values[1], event.values[2])
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+    }
+
+    DisposableEffect(Unit) {
+        sensorManager.registerListener(magnetSensorListener, magnetSensor, SensorManager.SENSOR_DELAY_NORMAL)
+        onDispose {
+            sensorManager.unregisterListener(magnetSensorListener)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (magDataList.isNotEmpty()) {
+                val lastReading = magDataList.last()
+                listMagnitudePointsX = listMagnitudePointsX + Point(listMagnitudePointsX.size.toFloat(), lastReading.x)
+                listMagnitudePointsY = listMagnitudePointsY + Point(listMagnitudePointsY.size.toFloat(), lastReading.y)
+                listMagnitudePointsZ = listMagnitudePointsZ + Point(listMagnitudePointsZ.size.toFloat(), lastReading.z)
+            }
+            delay(1000)
+        }
+    }
+
+    return MagnetometerData(listMagnitudePointsX, listMagnitudePointsY, listMagnitudePointsZ)
+}
+
+// Diagramme mit einer und Mehreren Linien
+
+@Composable
+fun ChartSensor(points: List<Point>, yStartValue: Float, yEndValue: Float, modifier: Modifier = Modifier) {
+    val steps = (yEndValue - yStartValue).toInt()
+    val lineChartData = remember(points, yStartValue, yEndValue) {
+        val xAxisData = AxisData.Builder()
+            .axisStepSize(100.dp)
+            .backgroundColor(Color.Blue)
+            .steps(maxOf(2, points.size - 1))
+            .labelData { i -> points.getOrNull(i)?.x?.toInt()?.toString() ?: "" }
+            .labelAndAxisLinePadding(15.dp)
+            .build()
+
+        val yAxisData = AxisData.Builder()
+            .steps(steps)
+            .backgroundColor(Color.Red)
+            .labelAndAxisLinePadding(20.dp)
+
+            .labelData { i -> (yStartValue + i).toInt().toString() }.build()
+
+        LineChartData(
+            linePlotData = LinePlotData(
+                lines = listOf(
+                    Line(
+                        dataPoints = points,
+                        LineStyle(),
+                        IntersectionPoint(),
+                        SelectionHighlightPoint(),
+                        ShadowUnderLine(),
+                        SelectionHighlightPopUp()
+                    )
+                )
+            ),
+            xAxisData = xAxisData,
+            yAxisData = yAxisData,
+            gridLines = GridLines(),
+            backgroundColor = Color.White
+        )
+    }
+
+    LineChart(
+        modifier = modifier.fillMaxWidth().height(300.dp),
+        lineChartData = lineChartData
+    )
+}
+
+@Composable
+fun MultiLineChartSensor(lines: List<List<Point>>, yStartValue: Float, yEndValue: Float, modifier: Modifier = Modifier) {
+    val steps = 12 // 12 steps for a range of 120 (-60 to 60) in 10-step increments
+    val lineChartData = remember(lines, yStartValue, yEndValue) {
+        val xAxisData = AxisData.Builder()
+            .axisStepSize(100.dp)
+            .backgroundColor(Color.Blue)
+            .steps(maxOf(2, lines.maxOfOrNull { it.size }?.minus(1) ?: 2))
+            .labelData { i -> i.toString() }
+            .labelAndAxisLinePadding(15.dp)
+            .build()
+
+        val yAxisData = AxisData.Builder()
+            .steps(steps)
+            .backgroundColor(Color.Red)
+
+            .labelAndAxisLinePadding(20.dp)
+            .labelData { i -> (yStartValue + (i * 10)).toInt().toString() }
+            .build()
+
+        val lineColors = listOf(Color.Cyan, Color.Green, Color.Magenta)
+
+        LineChartData(
+            linePlotData = LinePlotData(
+                lines = lines.mapIndexed { index, points ->
+                    Line(
+                        dataPoints = points,
+                        lineStyle = LineStyle(color = lineColors.getOrElse(index) { Color.Black }),
+                        intersectionPoint = IntersectionPoint(),
+                        selectionHighlightPoint = SelectionHighlightPoint(),
+                        shadowUnderLine = ShadowUnderLine(),
+                        selectionHighlightPopUp = SelectionHighlightPopUp()
+                    )
+                }
+            ),
+            xAxisData = xAxisData,
+            yAxisData = yAxisData,
+            gridLines = GridLines(),
+            backgroundColor = Color.White
+        )
+    }
+
+    LineChart(
+        modifier = modifier.fillMaxWidth().height(500.dp),
+        lineChartData = lineChartData
+    )
 }
