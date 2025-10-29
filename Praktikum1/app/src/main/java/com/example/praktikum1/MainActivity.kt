@@ -694,7 +694,7 @@ fun TestTextOutput(accelData: FloatArray,
 
 
 // DisplaySensorData als Beispiel, wie man die Listener und Charts aufruft
-
+// yes
 @Composable
 fun DisplaySensorData(modifier: Modifier, accelData: FloatArray) {
 
