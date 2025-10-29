@@ -71,6 +71,7 @@ import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
 import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
 import co.yml.charts.ui.linechart.model.ShadowUnderLine
 import kotlinx.coroutines.delay
+import kotlin.collections.plus
 
 
 class MainActivity : ComponentActivity() {
@@ -691,12 +692,13 @@ fun TestTextOutput(accelData: FloatArray,
 
 
 
-//TODO Implementierung in die eigentliche Oberfläche
 
 // DisplaySensorData als Beispiel, wie man die Listener und Charts aufruft
 
 @Composable
 fun DisplaySensorData(modifier: Modifier, accelData: FloatArray) {
+
+
     val (accPoints, accMagnitude) = rememberAndProcessSensorDataAcc(accelData)
     val magData = rememberAndProcessSensorDataMag() // type: MagnetometerData
 
@@ -718,26 +720,28 @@ fun DisplaySensorData(modifier: Modifier, accelData: FloatArray) {
 }
 
 // Funktion für das Gewinnen der Daten und die Umwandlung in ein geeignetes Format für die Charts
-// TODO Hier muss nur der bereits bestehende Sensor ausgelesen werden und die Ergebnisse umgewandelt werden
+
 @Composable
 fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Float> {
+
     val ctx = LocalContext.current
+    val currentAccelData by rememberUpdatedState(accelData)
     data class AccelData(val x: Float, val y: Float, val z: Float)
     var magnitude by remember { mutableFloatStateOf(0f) }
-    var accDataList by remember { mutableStateOf<List<AccelData>>(emptyList()) }
+
     var listMagnitudePoints by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
 
 
-    LaunchedEffect(Unit) {
-        // Erstmal Dummydaten damit es keine Fehler beim Diagram gibt
-       // accDataList = accDataList + AccelData(0f, 0f, 0f)
 
+
+    LaunchedEffect(Unit) {
         while (true) {
+
             // if Acc checked == True
             // hier vlt die accDataList mit Daten aus dem ViewModel füllen, und zwar so, dass die Acc daten zu AccData konvertiert werden
-            //accDataList = accDataList + AccelData(accelData[0],accelData[1],accelData[2])
-            Log.e("TAG", "accDataList X Wert: ${accelData[0]}")
-            magnitude = kotlin.math.sqrt((accelData[0] * accelData[0] + accelData[1] * accelData[1] + accelData[2]*accelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
+            //accDataList = accDataList + AccelData(currentAccelData[0],currentAccelData[1],currentAccelData[2])
+            Log.e("TAG", "accDataList X Wert: ${currentAccelData[0]}")
+            magnitude = kotlin.math.sqrt((currentAccelData[0] * currentAccelData[0] + currentAccelData[1] * currentAccelData[1] + currentAccelData[2]*currentAccelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
             listMagnitudePoints = listMagnitudePoints + Point(listMagnitudePoints.size.toFloat(), magnitude)
 
             delay(3000) // Damit sich das Diagramm jede Sekunde erneuert
