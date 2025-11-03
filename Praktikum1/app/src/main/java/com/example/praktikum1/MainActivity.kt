@@ -149,7 +149,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-data class MagnetometerData(val xPoints: List<Point>, val yPoints: List<Point>, val zPoints: List<Point>)
+data class XYZData(val xPoints: List<Point>, val yPoints: List<Point>, val zPoints: List<Point>)
 
 @Composable
 fun Application(sensorManager: SensorManager,
@@ -170,7 +170,7 @@ fun Application(sensorManager: SensorManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
             viewModel = viewModel) // relied on by sensor listeners for viewModel.onNew...Data()
 
-        DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData)
+        DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData, gyroData = sensorData.gyroData ,magnetData = sensorData.magnetData)
         // Separate composable for Data Storage and Data Visualisation here!
         TestTextOutput(sensorData.accelData,
             sensorData.gyroData,
@@ -691,44 +691,47 @@ fun TestTextOutput(accelData: FloatArray,
 // Komponenten für das Anzeigen de Daten
 
 
-
-
-// DisplaySensorData als Beispiel, wie man die Listener und Charts aufruft
-// yes
 @Composable
-fun DisplaySensorData(modifier: Modifier, accelData: FloatArray) {
+fun DisplaySensorData(modifier: Modifier, accelData: FloatArray, magnetData: FloatArray, gyroData: FloatArray) {
 
 
     val (accPoints, accMagnitude) = rememberAndProcessSensorDataAcc(accelData)
-    val magData = rememberAndProcessSensorDataMag() // type: MagnetometerData
+    val gyroData = rememberAndProcessSensorDataGyro(gyroData)
+    val magData = rememberAndProcessSensorDataMag(magnetData) // Rückgabetyp type: XYZData
+
 
     Column(modifier = modifier) {
         Text(
             text = "Accelerometer Magnitude: $accMagnitude"
         )
-        ChartSensor(points = accPoints, yStartValue = 6f, yEndValue = 12f)
+        ChartSensor(points = accPoints, yStartValue = 6f, yEndValue = 10f)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(text = "Magnetometer \n X: ${magData.xPoints.last().y} (Cyan) \n Y:${magData.yPoints.last().y} (Green) \n Z: ${magData.zPoints.last().y} (Magenta)")
+        Text(text = "Gyroscope \n X: ${gyroData.xPoints.last().y} (Magenta) \n Y:${gyroData.yPoints.last().y} (Cyan) \n Z: ${gyroData.zPoints.last().y} (Green)")
+        MultiLineChartSensor(
+            lines = listOf(gyroData.xPoints, gyroData.yPoints, gyroData.zPoints),
+            yStartValue = -7f,
+            yEndValue = 7f
+        )
+
+        Text(text = "Magnetometer \n X: ${magData.xPoints.last().y} (Magenta) \n Y:${magData.yPoints.last().y} (Cyan) \n Z: ${magData.zPoints.last().y} (Green)")
         MultiLineChartSensor(
             lines = listOf(magData.xPoints, magData.yPoints, magData.zPoints),
-            yStartValue = -60f,
-            yEndValue = 60f
+            yStartValue = -40f,
+            yEndValue = 40f
         )
     }
 }
 
 // Funktion für das Gewinnen der Daten und die Umwandlung in ein geeignetes Format für die Charts
 
+// TODO die rememberAndProcessData Funktionen generisch machen
 @Composable
 fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Float> {
-
-    val ctx = LocalContext.current
+    
     val currentAccelData by rememberUpdatedState(accelData)
-    data class AccelData(val x: Float, val y: Float, val z: Float)
     var magnitude by remember { mutableFloatStateOf(0f) }
-
     var listMagnitudePoints by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
 
 
@@ -737,10 +740,9 @@ fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Fl
     LaunchedEffect(Unit) {
         while (true) {
 
-            // if Acc checked == True
-            // hier vlt die accDataList mit Daten aus dem ViewModel füllen, und zwar so, dass die Acc daten zu AccData konvertiert werden
-            //accDataList = accDataList + AccelData(currentAccelData[0],currentAccelData[1],currentAccelData[2])
-            Log.e("TAG", "accDataList X Wert: ${currentAccelData[0]}")
+            //TODO if Acc checked == True
+            
+            // Log.e("TAG", "accDataList X Wert: ${currentAccelData[0]}")
             magnitude = kotlin.math.sqrt((currentAccelData[0] * currentAccelData[0] + currentAccelData[1] * currentAccelData[1] + currentAccelData[2]*currentAccelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
             listMagnitudePoints = listMagnitudePoints + Point(listMagnitudePoints.size.toFloat(), magnitude)
 
@@ -752,49 +754,51 @@ fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Fl
 }
 
 @Composable
-fun rememberAndProcessSensorDataMag(): MagnetometerData {
-    val ctx = LocalContext.current
-    val sensorManager = remember { ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager }
+fun rememberAndProcessSensorDataMag(magnetData: FloatArray): XYZData {
+    val currentMagnetometerDataData by rememberUpdatedState(magnetData)
 
-    val magnetSensor = remember { sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD) }
-    data class MagData(val x: Float, val y: Float, val z: Float)
-    var magDataList by remember { mutableStateOf<List<MagData>>(emptyList()) }
-    var listMagnitudePointsX by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
-    var listMagnitudePointsY by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
-    var listMagnitudePointsZ by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
-
-    val magnetSensorListener = remember {
-        object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent?) {
-                if (event?.sensor?.type == Sensor.TYPE_MAGNETIC_FIELD) {
-                    magDataList = magDataList + MagData(event.values[0], event.values[1], event.values[2])
-                }
-            }
-
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-        }
-    }
-
-    DisposableEffect(Unit) {
-        sensorManager.registerListener(magnetSensorListener, magnetSensor, SensorManager.SENSOR_DELAY_NORMAL)
-        onDispose {
-            sensorManager.unregisterListener(magnetSensorListener)
-        }
-    }
-
+    var listPointsX by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    var listPointsY by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    var listPointsZ by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    
+    
     LaunchedEffect(Unit) {
         while (true) {
-            if (magDataList.isNotEmpty()) {
-                val lastReading = magDataList.last()
-                listMagnitudePointsX = listMagnitudePointsX + Point(listMagnitudePointsX.size.toFloat(), lastReading.x)
-                listMagnitudePointsY = listMagnitudePointsY + Point(listMagnitudePointsY.size.toFloat(), lastReading.y)
-                listMagnitudePointsZ = listMagnitudePointsZ + Point(listMagnitudePointsZ.size.toFloat(), lastReading.z)
-            }
+
+                val lastReading = currentMagnetometerDataData
+                listPointsX = listPointsX + Point(listPointsX.size.toFloat(), lastReading[0])
+                listPointsY = listPointsY + Point(listPointsY.size.toFloat(), lastReading[1])
+                listPointsZ = listPointsZ + Point(listPointsZ.size.toFloat(), lastReading[2])
+            
             delay(1000)
         }
     }
 
-    return MagnetometerData(listMagnitudePointsX, listMagnitudePointsY, listMagnitudePointsZ)
+    return XYZData(listPointsX, listPointsY, listPointsZ)
+}
+
+@Composable
+fun rememberAndProcessSensorDataGyro(gyroData: FloatArray): XYZData {
+    val currenGyroscopDataData by rememberUpdatedState(gyroData)
+
+    var listPointsX by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    var listPointsY by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+    var listPointsZ by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
+
+
+    LaunchedEffect(Unit) {
+        while (true) {
+
+            val lastReading = currenGyroscopDataData
+            listPointsX = listPointsX + Point(listPointsX.size.toFloat(), lastReading[0])
+            listPointsY = listPointsY + Point(listPointsY.size.toFloat(), lastReading[1])
+            listPointsZ = listPointsZ + Point(listPointsZ.size.toFloat(), lastReading[2])
+
+            delay(1000)
+        }
+    }
+
+    return XYZData(listPointsX, listPointsY, listPointsZ)
 }
 
 // Diagramme mit einer und Mehreren Linien
@@ -864,7 +868,7 @@ fun MultiLineChartSensor(lines: List<List<Point>>, yStartValue: Float, yEndValue
             .labelData { i -> (yStartValue + (i * 10)).toInt().toString() }
             .build()
 
-        val lineColors = listOf(Color.Cyan, Color.Green, Color.Magenta)
+        val lineColors = listOf(Color.Green, Color.Magenta, Color.Cyan)
 
         LineChartData(
             linePlotData = LinePlotData(
