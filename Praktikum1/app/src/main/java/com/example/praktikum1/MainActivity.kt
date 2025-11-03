@@ -708,7 +708,7 @@ fun DisplaySensorData(modifier: Modifier, accelData: FloatArray, magnetData: Flo
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(text = "Gyroscope \n X: ${gyroData.xPoints.last().y} (Magenta) \n Y:${gyroData.yPoints.last().y} (Cyan) \n Z: ${gyroData.zPoints.last().y} (Green)")
+        Text(text = "Gyroscope in  \n X: ${gyroData.xPoints.last().y} (Magenta) \n Y:${gyroData.yPoints.last().y} (Cyan) \n Z: ${gyroData.zPoints.last().y} (Green)")
         MultiLineChartSensor(
             lines = listOf(gyroData.xPoints, gyroData.yPoints, gyroData.zPoints),
             yStartValue = -7f,
@@ -729,7 +729,7 @@ fun DisplaySensorData(modifier: Modifier, accelData: FloatArray, magnetData: Flo
 // TODO die rememberAndProcessData Funktionen generisch machen
 @Composable
 fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Float> {
-    
+    var i = remember { 0f }
     val currentAccelData by rememberUpdatedState(accelData)
     var magnitude by remember { mutableFloatStateOf(0f) }
     var listMagnitudePoints by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
@@ -739,15 +739,19 @@ fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Fl
 
     LaunchedEffect(Unit) {
         while (true) {
+            i++
 
             //TODO if Acc checked == True
             
             // Log.e("TAG", "accDataList X Wert: ${currentAccelData[0]}")
             magnitude = kotlin.math.sqrt((currentAccelData[0] * currentAccelData[0] + currentAccelData[1] * currentAccelData[1] + currentAccelData[2]*currentAccelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
-            listMagnitudePoints = listMagnitudePoints + Point(listMagnitudePoints.size.toFloat(), magnitude)
+            listMagnitudePoints = listMagnitudePoints + Point(i, magnitude)
 
-            delay(3000) // Damit sich das Diagramm jede Sekunde erneuert
+            delay(1000) // Damit sich das Diagramm jede Sekunde erneuert
         }
+    }
+    if (listMagnitudePoints.size > 10) {
+        listMagnitudePoints = listMagnitudePoints.subList(listMagnitudePoints.size - 10, listMagnitudePoints.size)
     }
 
     return Pair(listMagnitudePoints, magnitude)
