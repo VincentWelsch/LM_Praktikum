@@ -42,7 +42,6 @@ android {
 
 dependencies {
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
-    implementation("org.osmdroid:osmdroid-android:6.1.20")
     implementation("co.yml:ycharts:2.1.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -54,6 +53,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     // implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation(libs.play.services.location)
+    implementation(libs.androidx.preference.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
@@ -63,5 +63,6 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    implementation("org.osmdroid:osmdroid-android:6.1.20")
 
 }
