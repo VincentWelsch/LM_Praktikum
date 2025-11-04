@@ -1,7 +1,7 @@
 package com.example.praktikum1
 
+
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -34,30 +34,22 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import com.example.praktikum1.ui.theme.Praktikum1Theme
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import kotlin.math.roundToInt
-
-
-import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
 import co.yml.charts.axis.AxisData
 import co.yml.charts.common.model.Point
 import co.yml.charts.ui.linechart.LineChart
@@ -70,8 +62,19 @@ import co.yml.charts.ui.linechart.model.LineStyle
 import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
 import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
 import co.yml.charts.ui.linechart.model.ShadowUnderLine
+import com.example.praktikum1.ui.theme.Praktikum1Theme
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.delay
-import kotlin.collections.plus
+import org.osmdroid.config.Configuration
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import kotlin.math.roundToInt
 
 
 class MainActivity : ComponentActivity() {
@@ -90,6 +93,7 @@ class MainActivity : ComponentActivity() {
         *      Text(text = "x: ${sensorData.accelData[0]}..."}
         *  - though not necessary, call viewModel.stopProcessing() when disposing
         */
+
 
         enableEdgeToEdge()
         setContent {
@@ -122,6 +126,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val ctx = applicationContext
+        Configuration.getInstance().load(ctx, androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx))
 
         // Get requested permissions from AndroidManifest.xml
         try {
@@ -172,10 +178,17 @@ fun Application(sensorManager: SensorManager,
 
         DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData, gyroData = sensorData.gyroData ,magnetData = sensorData.magnetData)
         // Separate composable for Data Storage and Data Visualisation here!
+
+       // MapDisplay(positionData = sensorData.positionData)
         TestTextOutput(sensorData.accelData,
             sensorData.gyroData,
             sensorData.magnetData,
             sensorData.positionData)
+
+        Spacer(Modifier.height(250.dp))
+
+
+        OsmMapScreen(positionData = sensorData.positionData)
 
     }
     DisposableEffect(Unit) {
@@ -897,5 +910,40 @@ fun MultiLineChartSensor(lines: List<List<Point>>, yStartValue: Float, yEndValue
     LineChart(
         modifier = modifier.fillMaxWidth().height(500.dp),
         lineChartData = lineChartData
+    )
+}
+
+
+
+@Composable
+fun OsmMapScreen(positionData: FloatArray) {
+
+    AndroidView(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp), // This fixed height is the key to solving the zoom issue
+        factory = {
+            MapView(it).apply {
+                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                controller.setZoom(15.0)
+                setMultiTouchControls(true)
+                controller.setCenter(GeoPoint(51.482582, 7.217153)) // Default: Bochumer Innenstadt (nur Startposition)
+            }
+        },
+        update = { mapView ->
+            if (positionData.size == 2 && positionData[0] != 0f && positionData[1] != 0f) {
+                val geoPoint = GeoPoint(positionData[1].toDouble(), positionData[0].toDouble())
+                mapView.controller.setCenter(geoPoint)
+                mapView.controller.setZoom(16.0)
+
+                // Clear existing overlays and add a new marker
+                mapView.overlays.clear()
+                val marker = Marker(mapView)
+                marker.position = geoPoint
+                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                mapView.overlays.add(marker)
+                mapView.invalidate()
+            }
+        }
     )
 }
