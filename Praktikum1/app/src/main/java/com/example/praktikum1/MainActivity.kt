@@ -74,7 +74,9 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import java.math.RoundingMode
 import kotlin.math.roundToInt
+import kotlin.toBigDecimal
 
 
 class MainActivity : ComponentActivity() {
@@ -165,12 +167,16 @@ fun Application(sensorManager: SensorManager,
     // Not in startApplication because LocalCOntext.current must be inside a composable
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
+    //val accelchecked by remember { mutableStateOf(false) }
+
+
     Column(
         modifier = Modifier
             .padding(20.dp)
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
+        Spacer(Modifier.height(20.dp)) // Damit die Zeile nicht verdeckt ist
         SensorConfig(sensorManager = sensorManager,
             locationManager = locationManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
@@ -715,20 +721,20 @@ fun DisplaySensorData(modifier: Modifier, accelData: FloatArray, magnetData: Flo
 
     Column(modifier = modifier) {
         Text(
-            text = "Accelerometer Magnitude: $accMagnitude"
+            text = "Accelerometer Magnitude: ${accMagnitude.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()}"
         )
-        ChartSensor(points = accPoints, yStartValue = 6f, yEndValue = 10f)
+        ChartSensor(points = accPoints, yStartValue = 4f, yEndValue = 13f)
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(text = "Gyroscope in  \n X: ${gyroData.xPoints.last().y} (Magenta) \n Y:${gyroData.yPoints.last().y} (Cyan) \n Z: ${gyroData.zPoints.last().y} (Green)")
+        Text(text = "Gyroscope in  \n X: ${gyroData.xPoints.last().y.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()} (Magenta) \n Y:${gyroData.yPoints.last().y.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()} (Cyan) \n Z: ${gyroData.zPoints.last().y.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()} (Green)")
         MultiLineChartSensor(
             lines = listOf(gyroData.xPoints, gyroData.yPoints, gyroData.zPoints),
             yStartValue = -7f,
             yEndValue = 7f
         )
 
-        Text(text = "Magnetometer \n X: ${magData.xPoints.last().y} (Magenta) \n Y:${magData.yPoints.last().y} (Cyan) \n Z: ${magData.zPoints.last().y} (Green)")
+        Text(text = "Magnetometer \n X: ${magData.xPoints.last().y.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()} (Magenta) \n Y:${magData.yPoints.last().y.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()} (Cyan) \n Z: ${magData.zPoints.last().y.toBigDecimal().setScale(3, RoundingMode.UP).toDouble()} (Green)")
         MultiLineChartSensor(
             lines = listOf(magData.xPoints, magData.yPoints, magData.zPoints),
             yStartValue = -40f,
@@ -746,16 +752,16 @@ fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Fl
     val currentAccelData by rememberUpdatedState(accelData)
     var magnitude by remember { mutableFloatStateOf(0f) }
     var listMagnitudePoints by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
-
-
-
-
     LaunchedEffect(Unit) {
         while (true) {
             i++
 
             //TODO if Acc checked == True
-            
+            //Wie komme ich an den Checked Status von dem Acc Sensor bzw von allen Sensoren?
+
+
+
+
             // Log.e("TAG", "accDataList X Wert: ${currentAccelData[0]}")
             magnitude = kotlin.math.sqrt((currentAccelData[0] * currentAccelData[0] + currentAccelData[1] * currentAccelData[1] + currentAccelData[2]*currentAccelData[2]).toDouble()).toFloat() // accelData -> [x,y,z]
             listMagnitudePoints = listMagnitudePoints + Point(i, magnitude)
@@ -773,6 +779,7 @@ fun rememberAndProcessSensorDataAcc(accelData: FloatArray): Pair<List<Point>, Fl
 @Composable
 fun rememberAndProcessSensorDataMag(magnetData: FloatArray): XYZData {
     val currentMagnetometerDataData by rememberUpdatedState(magnetData)
+    var i = remember { 0f }
 
     var listPointsX by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
     var listPointsY by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
@@ -781,23 +788,28 @@ fun rememberAndProcessSensorDataMag(magnetData: FloatArray): XYZData {
     
     LaunchedEffect(Unit) {
         while (true) {
+            i++
 
                 val lastReading = currentMagnetometerDataData
-                listPointsX = listPointsX + Point(listPointsX.size.toFloat(), lastReading[0])
-                listPointsY = listPointsY + Point(listPointsY.size.toFloat(), lastReading[1])
-                listPointsZ = listPointsZ + Point(listPointsZ.size.toFloat(), lastReading[2])
+                listPointsX = listPointsX + Point(i, lastReading[0])
+                listPointsY = listPointsY + Point(i, lastReading[1])
+                listPointsZ = listPointsZ + Point(i, lastReading[2])
             
             delay(1000)
         }
     }
-
+    if (listPointsX.size > 10) {
+        listPointsX = listPointsX.subList(listPointsX.size - 10, listPointsX.size)
+        listPointsY = listPointsY.subList(listPointsY.size - 10, listPointsY.size)
+        listPointsZ = listPointsZ.subList(listPointsZ.size - 10, listPointsZ.size)
+    }
     return XYZData(listPointsX, listPointsY, listPointsZ)
 }
 
 @Composable
 fun rememberAndProcessSensorDataGyro(gyroData: FloatArray): XYZData {
     val currenGyroscopDataData by rememberUpdatedState(gyroData)
-
+    var i = remember { 0f }
     var listPointsX by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
     var listPointsY by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
     var listPointsZ by remember { mutableStateOf(listOf(Point(0f, 0f), Point(1f, 0f))) }
@@ -805,14 +817,21 @@ fun rememberAndProcessSensorDataGyro(gyroData: FloatArray): XYZData {
 
     LaunchedEffect(Unit) {
         while (true) {
+            i++
 
             val lastReading = currenGyroscopDataData
-            listPointsX = listPointsX + Point(listPointsX.size.toFloat(), lastReading[0])
-            listPointsY = listPointsY + Point(listPointsY.size.toFloat(), lastReading[1])
-            listPointsZ = listPointsZ + Point(listPointsZ.size.toFloat(), lastReading[2])
+            listPointsX = listPointsX + Point(i, lastReading[0])
+            listPointsY = listPointsY + Point(i, lastReading[1])
+            listPointsZ = listPointsZ + Point(i, lastReading[2])
 
             delay(1000)
         }
+    }
+
+    if (listPointsX.size > 10) {
+        listPointsX = listPointsX.subList(listPointsX.size - 10, listPointsX.size)
+        listPointsY = listPointsY.subList(listPointsY.size - 10, listPointsY.size)
+        listPointsZ = listPointsZ.subList(listPointsZ.size - 10, listPointsZ.size)
     }
 
     return XYZData(listPointsX, listPointsY, listPointsZ)
@@ -837,7 +856,7 @@ fun ChartSensor(points: List<Point>, yStartValue: Float, yEndValue: Float, modif
             .backgroundColor(Color.Red)
             .labelAndAxisLinePadding(20.dp)
 
-            .labelData { i -> (yStartValue + i).toInt().toString() }.build()
+            .labelData { i -> (yStartValue + i*(yEndValue-yStartValue)/steps).toBigDecimal().setScale(1, RoundingMode.UP).toString() }.build()
 
         LineChartData(
             linePlotData = LinePlotData(
