@@ -62,7 +62,6 @@ import kotlin.math.roundToInt
 
 
 import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
 import co.yml.charts.axis.AxisData
 import co.yml.charts.common.model.Point
 import co.yml.charts.ui.linechart.LineChart
@@ -75,13 +74,6 @@ import co.yml.charts.ui.linechart.model.LineStyle
 import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
 import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
 import co.yml.charts.ui.linechart.model.ShadowUnderLine
-import com.example.praktikum1.ui.theme.Praktikum1Theme
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import kotlinx.coroutines.delay
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
@@ -193,7 +185,15 @@ fun Application(sensorManager: SensorManager,
             fusedLocationProviderClient = fusedLocationProviderClient,
             viewModel = viewModel, // relied on by sensor listeners for viewModel.onNew...Data()
         )
-        DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData)
+        TestTextOutput(sensorData.accelData,
+            sensorData.gyroData,
+            sensorData.magnetData,
+            sensorData.positionData)
+
+        // Separate composable for Data Visualisation here!
+        DisplaySensorData(modifier = Modifier, accelData = sensorData.accelData,
+            magnetData = sensorData.magnetData,
+            gyroData = sensorData.gyroData)
         LaunchedEffect(sensorData) {
             val sample = SensorSample(
                 timestamp = System.currentTimeMillis(),
@@ -212,16 +212,7 @@ fun Application(sensorManager: SensorManager,
             storageViewModel.addSample(sample)
             Log.d("DataStorage", "Added a Sample")
         }
-
-        // Separate composable for Data Visualisation here!
-        TestTextOutput(sensorData.accelData,
-            sensorData.gyroData,
-            sensorData.magnetData,
-            sensorData.positionData)
-
         Spacer(Modifier.height(250.dp))
-
-
         OsmMapScreen(positionData = sensorData.positionData)
 
     }
@@ -234,7 +225,7 @@ fun Application(sensorManager: SensorManager,
 }
 
 @Composable
-fun SensorConfig(modifier: Modifier = Modifier,
+fun SensorConfig(// modifier: Modifier = Modifier,
                  sensorManager: SensorManager,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
