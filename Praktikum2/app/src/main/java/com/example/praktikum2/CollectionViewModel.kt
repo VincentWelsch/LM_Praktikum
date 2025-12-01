@@ -122,10 +122,10 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
             try {
                 // Create temporary Run object for serialization
                 val run = Run(title, groundTruth, measurements, waypoints)
-                val run_json = Json.encodeToString()
+                val runJson = Json.encodeToString(run)
                 // Write to file
                 val file = File(appContext.filesDir, "$title.json")
-                file.writeText(run_json)
+                file.writeText(runJson)
                 val absPath = file.absolutePath
                 Log.d("SaveToFile", "Path: $absPath")
             } catch (e: Exception) {
