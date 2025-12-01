@@ -2,10 +2,6 @@ package com.example.praktikum2
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
@@ -17,15 +13,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Button
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -37,7 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import com.example.praktikum2.ui.theme.Praktikum2Theme
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -52,13 +46,13 @@ import kotlin.math.roundToInt
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-        val pointsModel = PointsViewModel()
+        val collectionModel = CollectionViewModel()
 
         enableEdgeToEdge()
         setContent {
             Praktikum2Theme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Application(locationManager, pointsModel)
+                    Application(locationManager, collectionModel)
                     innerPadding
                 }
             }
@@ -117,31 +111,66 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Application(locationManager: LocationManager,
-                pointsModel: PointsViewModel) {
+                collectionModel: CollectionViewModel) {
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
-    SensorConfig(locationManager, fusedLocationProviderClient)
+    Menu(locationManager, fusedLocationProviderClient, collectionModel)
+}
+
+@Composable
+fun Menu(locationManager: LocationManager,
+         fusedLocationProviderClient: FusedLocationProviderClient,
+         collectionModel: CollectionViewModel) {
+    var window by remember { mutableStateOf(0)}
+    // Let 0 be Record, 1 be Display, and 2 be Config
+    Column {
+        Row {
+            Button(onClick = { window = 0 }) { Text("Record") }
+            Button(onClick = { window = 1 }) { Text("Display") }
+            Button(onClick = { window = 2 }) { Text("Config")}
+        }
+        Row {
+            when (window) {
+                0 -> { RecordWindow(collectionModel) }
+                1 -> { DisplayWindow(collectionModel) } // TODO: define DisplayWindow
+                2 -> { SensorConfig(locationManager, fusedLocationProviderClient, collectionModel) }
+            }
+        }
+    }
+}
+
+@Composable
+fun RecordWindow(collectionModel: CollectionViewModel) {
+    var title by remember { mutableStateOf("Run1") }
+    Column {
+        TextField(value = title, onValueChange = { value -> title = value })
+        Button(onClick = {collectionModel.storeCollection(title)}) {Text("Store")}
+        Button(onClick = {collectionModel.addWaypoint()}) {Text("Reached Waypoint")}
+    }
 }
 
 @Composable
 fun SensorConfig(// modifier: Modifier = Modifier,
-    locationManager: LocationManager,
-    fusedLocationProviderClient: FusedLocationProviderClient) {
-    // https://developer.android.com/develop/sensors-and-location/sensors/sensors_overview?hl=de#sensors-identify
-    // Logic
-    // Variables
+                 locationManager: LocationManager,
+                 fusedLocationProviderClient: FusedLocationProviderClient,
+                 collectionModel: CollectionViewModel) {
+    // Remnants of Praktikum1
+    var allSensorSwitchesEnabled: Boolean by remember { mutableStateOf(true) }
     var positionChecked: Boolean by remember { mutableStateOf(false)}
+    // gps, network, or fused
     var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
-
-    var positionMinTimeMs: Int by remember { mutableIntStateOf(15000) }
-    var positionDistanceM: Float by remember { mutableFloatStateOf(10f) }
+    // for gps and network
     var positionPriority: Int by remember { mutableIntStateOf(Priority.PRIORITY_BALANCED_POWER_ACCURACY) }
-    var positionIntervalMs: Int by remember { mutableIntStateOf(10000) }
+    var positionIntervalMs: Int by remember { mutableIntStateOf(1000) }
+    // for fused
+    var positionMinTimeMs: Int by remember { mutableIntStateOf(1000) }
+    var positionDistanceM: Float by remember { mutableFloatStateOf(10f) }
 
     // Init position event listeners
     val locationListener: LocationListener = remember {
         LocationListener { location ->
-            viewModel.onNewPositionData(floatArrayOf(location.longitude.toFloat(), location.latitude.toFloat()))
+            collectionModel.addMeasurement(location.longitude.toFloat(),
+                location.latitude.toFloat())
         }
     }
 
@@ -151,8 +180,8 @@ fun SensorConfig(// modifier: Modifier = Modifier,
             override fun onLocationResult(p0: LocationResult) {
                 super.onLocationResult(p0)
                 if (p0.lastLocation != null) {
-                    viewModel.onNewPositionData(floatArrayOf(p0.lastLocation!!.longitude.toFloat(),
-                        p0.lastLocation!!.latitude.toFloat()))
+                    collectionModel.addMeasurement(p0.lastLocation!!.longitude.toFloat(),
+                        p0.lastLocation!!.latitude.toFloat())
                 }
             }
         }
@@ -215,12 +244,12 @@ fun SensorConfig(// modifier: Modifier = Modifier,
         currentMethod = method
     }
 
-    DisposableEffect(Unit) {
+    /*DisposableEffect(Unit) {
         onDispose {
             Log.d("SensorListenerRegistration", "Disposing of all listeners")
             unregisterLocationListener(currentMethod)
         }
-    }
+    }*/
 
     PositionControl(
         isChecked = positionChecked,
@@ -249,8 +278,7 @@ fun SensorConfig(// modifier: Modifier = Modifier,
         },
         positionIntervalMs = positionIntervalMs,
         onPositionIntervalMsChange = { positionIntervalMs = it }
-        )
-    }
+    )
 }
 
 @Composable
@@ -271,115 +299,107 @@ fun PositionControl(
     positionIntervalMs: Int,
     onPositionIntervalMsChange: (Int) -> Unit,
 ) {
-    Column {
-        Row { // Checkbox
-            Checkbox(
-                checked = isChecked,
-                enabled = isEnabled,
-                onCheckedChange = onCheckedChange
-            )
-            Text(text = "Position")
-        }
-
+    Row {
+        Text(text = "Position")
+    }
         // https://developer.android.com/develop/ui/compose/components/radio-button?hl=de
         // Radio Buttons to choose method for determining position
-        if (isChecked) {
-            Row {
-                Column(modifier.selectableGroup()) {
-                    listOf(
-                        LocationManager.GPS_PROVIDER,
-                        LocationManager.NETWORK_PROVIDER,
-                        "fused"
-                    ).forEach { method ->
-                        Row(
-                            Modifier.selectable(
-                                selected = (method == currentMethod),
-                                onClick = {
-                                    try {
-                                        changePositionMethod(method)
-                                    } catch (e: Exception) {
-                                        Log.e(
-                                            "MethodChangeError",
-                                            "Failed to change method for position service: ${e.message}"
-                                        )
-                                    }
-                                },
-                                role = Role.RadioButton
-                            )
-                        ) {
-                            RadioButton(
-                                selected = (method == currentMethod),
-                                onClick = null
-                            )
-                            Text(text = method)
-                        }
+    if (isChecked) {
+        Row {
+            Column(modifier.selectableGroup()) {
+                listOf(
+                    LocationManager.GPS_PROVIDER,
+                    LocationManager.NETWORK_PROVIDER,
+                    "fused"
+                ).forEach { method ->
+                    Row(
+                        Modifier.selectable(
+                            selected = (method == currentMethod),
+                            onClick = {
+                                try {
+                                    changePositionMethod(method)
+                                } catch (e: Exception) {
+                                    Log.e(
+                                        "MethodChangeError",
+                                        "Failed to change method for position service: ${e.message}"
+                                    )
+                                }
+                            },
+                            role = Role.RadioButton
+                        )
+                    ) {
+                        RadioButton(
+                            selected = (method == currentMethod),
+                            onClick = null
+                        )
+                        Text(text = method)
                     }
                 }
             }
         }
+    }
 
-        if (isChecked && currentMethod != "fused") { // gps or network
-            Row {
-                Column {
-                    Row {
-                        Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
-                    }
-                    Row {
-                        Slider(
-                            value = positionMinTimeMs.toFloat(),
-                            modifier = modifier.weight(1f),
-                            steps = 59, // 0 -> 59 steps (each +1000 increment) -> 60000
-                            onValueChange = { onPositionMinTimeMsChange(it.roundToInt()) },
-                            onValueChangeFinished = onValueChangeFinished,
-                            valueRange = 0f..60000f
-                        )
-                    }
-                    Row {
-                        Text(text = "Minimum distance in m between updates: $positionDistanceM")
-                    }
-                    Row {
-                        Slider(
-                            value = positionDistanceM,
-                            modifier = modifier.weight(1f),
-                            steps = 99, // 0 -> 99 steps (each +1 increment) -> 100
-                            onValueChange = onPositionDistanceMChange,
-                            onValueChangeFinished = onValueChangeFinished,
-                            valueRange = 0f..100f
-                        )
-                    }
+    if (isChecked && currentMethod != "fused") { // gps or network
+        Row {
+            Column {
+                Row {
+                    Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
+                }
+                Row {
+                    Slider(
+                        value = positionMinTimeMs.toFloat(),
+                        modifier = modifier.weight(1f),
+                        steps = 59, // 0 -> 59 steps (each +1000 increment) -> 60000
+                        onValueChange = { onPositionMinTimeMsChange(it.roundToInt()) },
+                        onValueChangeFinished = onValueChangeFinished,
+                        valueRange = 0f..60000f
+                    )
+                }
+                Row {
+                    Text(text = "Minimum distance in m between updates: $positionDistanceM")
+                }
+                Row {
+                    Slider(
+                        value = positionDistanceM,
+                        modifier = modifier.weight(1f),
+                        steps = 99, // 0 -> 99 steps (each +1 increment) -> 100
+                        onValueChange = onPositionDistanceMChange,
+                        onValueChangeFinished = onValueChangeFinished,
+                        valueRange = 0f..100f
+                    )
                 }
             }
         }
+    }
 
-        if (isChecked && currentMethod == "fused") { // fused
-            Row {
-                Column {
-                    Row {
-                        Text(text = "Position priority: $positionPriority")
-                    }
-                    Row {
-                        Slider(
-                            value = positionPriority.toFloat(),
-                            modifier = modifier.weight(1f),
-                            steps = 4, // 100 -> step -> step -> step -> step -> 105
-                            onValueChange = onPositionPriorityChange,
-                            onValueChangeFinished = onValueChangeFinished,
-                            valueRange = 100f..105f
-                        ) // 103 and 101 do not exist
-                    }
-                    Row {
-                        Text(text = "Position interval in ms: $positionIntervalMs")
-                    }
-                    Row {
-                        Slider(
-                            value = positionIntervalMs.toFloat(),
-                            modifier = modifier.weight(1f),
-                            steps = 199, // 0 -> 199 steps (each +100 increment) -> 20000
-                            onValueChange = { onPositionIntervalMsChange(it.roundToInt()) },
-                            onValueChangeFinished = onValueChangeFinished,
-                            valueRange = 0f..20000f
-                        )
-                    }
+    if (isChecked && currentMethod == "fused") { // fused
+        Row {
+            Column {
+                Row {
+                    Text(text = "Position priority: $positionPriority")
+                }
+                Row {
+                    Slider(
+                        value = positionPriority.toFloat(),
+                        modifier = modifier.weight(1f),
+                        steps = 4, // 100 -> step -> step -> step -> step -> 105
+                        onValueChange = onPositionPriorityChange,
+                        onValueChangeFinished = onValueChangeFinished,
+                        valueRange = 100f..105f
+                    ) // 103 and 101 do not exist
+                }
+                Row {
+                    Text(text = "Position interval in ms: $positionIntervalMs")
+                }
+                Row {
+                    Slider(
+                        value = positionIntervalMs.toFloat(),
+                        modifier = modifier.weight(1f),
+                        steps = 199, // 0 -> 199 steps (each +100 increment) -> 20000
+                        onValueChange = { onPositionIntervalMsChange(it.roundToInt()) },
+                        onValueChangeFinished = onValueChangeFinished,
+                        valueRange = 0f..20000f
+                    )
                 }
             }
         }
