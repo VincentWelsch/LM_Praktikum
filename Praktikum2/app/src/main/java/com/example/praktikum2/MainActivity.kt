@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -122,6 +123,7 @@ fun Application(locationManager: LocationManager) {
     Menu(locationManager, fusedLocationProviderClient, collectionModel)
 }
 
+// Parent composable
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 fun Menu(locationManager: LocationManager,
@@ -148,24 +150,103 @@ fun Menu(locationManager: LocationManager,
     }
 }
 
+// Visual feedback
+fun actionFailedToast(context: Context) {
+    val toastText = "Action failed"
+    Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+}
+
+fun noTitleToast(context: Context) {
+    val toastText = "No title was provided"
+    Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+}
+
+fun addedWaypointToast(context: Context, longitude: Float, latitude: Float) {
+    val toastTest = "Added waypoint at $longitude, $latitude"
+    Toast.makeText(context, toastTest, Toast.LENGTH_SHORT).show()
+}
+
+fun foundMeasurementsToast(context: Context, mc: Int, wc: Int) {
+    val toastText = "Found $mc measurements and $wc waypoints"
+    Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+}
+
+// First child composable of menu
 @Composable
 fun RecordWindow(collectionModel: CollectionViewModel) {
     var title by remember { mutableStateOf("Run1") }
-    Column {
+    val ctx = LocalContext.current
+    /*
+    Layout:
+        TextField   Check Save
+                    Clear Load
+     */
+    Row {
+        // Input run or file name
         TextField(value = title, onValueChange = { value -> title = value })
-        Button(onClick = {collectionModel.storeCollection(title)}) {Text("Store")}
+        Column {
+            Row {
+                // Check for data in collectionModel
+                Button(onClick = {
+                    foundMeasurementsToast(
+                        ctx,
+                        collectionModel.getMeasurementsCount(),
+                        collectionModel.getWaypointsCount()
+                    )
+                }) { Text("Check") }
+                // Store data in "$title.json"
+                Button(onClick = {
+                    if (title.isEmpty()) {
+                        noTitleToast(ctx)
+                    } else {
+                        if (!collectionModel.storeCollection(title)) {
+                            actionFailedToast(ctx)
+                        } else {
+                            foundMeasurementsToast(
+                                ctx,
+                                collectionModel.getMeasurementsCount(),
+                                collectionModel.getWaypointsCount()
+                            )
+                        }
+                    }
+                }) { Text("Store") }
+            }
+            Row {
+                // Clear data from collectionModel
+                Button(onClick = {
+                    val mwc: Array<Int> = collectionModel.clearCollection()
+                    if (mwc.size > 1) {
+                        foundMeasurementsToast(ctx, mwc[0], mwc[1])
+                    }
+                }) { Text("Clear") }
+                // Load data from "$title.json"
+                Button(onClick = {
+                    if (title.isEmpty()) {
+                        noTitleToast(ctx)
+                    } else {
+                        if (!collectionModel.loadCollection(title)) {
+                            collectionModel.loadCollection(title)
+                        } else {
+                            foundMeasurementsToast(
+                                ctx,
+                                collectionModel.getMeasurementsCount(),
+                                collectionModel.getWaypointsCount()
+                            )
+                        }
+                    }
+                }) { Text("Load") }
+            }
+        }
     }
 }
 
+// Children of RecordWindow
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 fun SensorConfig(// modifier: Modifier = Modifier,
                  locationManager: LocationManager,
                  fusedLocationProviderClient: FusedLocationProviderClient,
                  collectionModel: CollectionViewModel) {
-    // Remnants of Praktikum1
-    var allSensorSwitchesEnabled: Boolean by remember { mutableStateOf(true) }
-    var positionChecked: Boolean by remember { mutableStateOf(false)}
     // gps, network, or fused
     var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
     // for gps and network
@@ -286,12 +367,8 @@ fun SensorConfig(// modifier: Modifier = Modifier,
 
         // Display current count of measurements and waypoints
         val ctx: Context = LocalContext.current
-        var mc: Int by remember { mutableStateOf(collectionModel.getMeasurementsCount()) }
-        var wc: Int by remember { mutableStateOf(collectionModel.getWaypointsCount()) }
         var takeNew: Boolean by remember { mutableStateOf(collectionModel.getTakesNew()) }
         Text("Since last update")
-        Text("Measurements $mc") // since last update
-        Text("Waypoints    $wc") // since last update
         Button(onClick = {
             var longitude: Float = Float.NaN
             var latitude: Float = Float.NaN
@@ -325,10 +402,11 @@ fun SensorConfig(// modifier: Modifier = Modifier,
             }
             // Add waypoint and update display
             collectionModel.addWaypoint(longitude, latitude)
-            mc = collectionModel.getMeasurementsCount()
-            wc = collectionModel.getWaypointsCount()
+            // Visual feedback
+            addedWaypointToast(ctx, longitude, latitude)
         }) { Text("Next Waypoint") }
         Row {
+            // Toggle if new data can be added to collectionModel
             Text("Allow new")
             Switch(checked = takeNew,
                 // Presumably, this is not updated if takeNew collectionModel is updated from elsewhere

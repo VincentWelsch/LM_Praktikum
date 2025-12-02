@@ -108,16 +108,16 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
 
 
     /*
-    Scheme:
+    Intended json scheme:
     {
         title: String,
         groundTruth: [ [Float, Float], ...],
-        measurements: [ {longitude: Float, latitude: Float, time: Long}, ...],
-        waypoints: [  ],
+        measurements: [ {longitude: Float, latitude: Float, time: Long}, ... ],
+        waypoints: [ {longitude: Float, latitude: Float, time: Long}, ... ],
     }
      */
     // Store entire collection with title
-    fun storeCollection(title: String) {
+    fun storeCollection(title: String): Boolean {
         if (title.isNotEmpty()) {
             try {
                 // Create temporary Run object for serialization
@@ -128,15 +128,17 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
                 file.writeText(runJson)
                 val absPath = file.absolutePath
                 Log.d("SaveToFile", "Path: $absPath")
+                return true
             } catch (e: Exception) {
                 Log.e("SaveToFile", "Failed to save run: ${e.message}")
             }
         } else {
             Log.w("SaveToFile", "No title was provided")
         }
+        return false
     }
     // Load entire collection with title and return title
-    fun loadCollectionU(title: String): String {
+    fun loadCollection(title: String): Boolean {
         if (title.isNotEmpty()) {
             try {
                 // Read from file
@@ -148,12 +150,27 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
                 measurements = run.measurements as MutableList<Measurement>
                 waypoints = run.waypoints as MutableList<Measurement>
                 Log.d("LoadFromFile", "Path: $absPath")
-                return run.title
+                return true
             } catch (e: Exception) {
                 Log.e("LoadFromFile", "Failed to load run: ${e.message}")
             }
         } else {
             Log.w("LoadFromFile", "No title was provided")
         }
+        return false
+    }
+
+    fun clearCollection(): Array<Int> {
+        // Remember takesNew
+        val tookNew: Boolean = takesNew
+        takesNew = false
+        // Save count for visual feedback, then clear
+        val arr: Array<Int> = arrayOf(getMeasurementsCount(), getWaypointsCount())
+        groundTruth.clear()
+        measurements.clear()
+        waypoints.clear()
+        // Restore takesNew, then return
+        takesNew = tookNew
+        return arr
     }
 }
