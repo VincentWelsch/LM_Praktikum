@@ -9,7 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToSting
+import kotlinx.serialization.encodeToString
 import java.io.File
 
 // import kotlin.time.Instant
