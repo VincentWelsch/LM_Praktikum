@@ -1,7 +1,10 @@
 package com.example.praktikum2
 
+import android.content.ClipData
 import android.content.Context
 import android.util.Log
+import android.content.ClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +61,9 @@ Usage:
 - Save all in JSON format with storeCollection
  */
 
-class CollectionViewModel(private val appContext: Context): ViewModel() {
+class CollectionViewModel(
+    private val appContext: Context,
+    private val clipboard: ClipboardManager): ViewModel() {
     private val ioScope = viewModelScope + Dispatchers.IO
     private var groundTruth: MutableList<FloatArray> = mutableListOf()
     fun getGroundTruth(): List<FloatArray> { return groundTruth as List<FloatArray> }
@@ -118,34 +123,45 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
     }
      */
     // Store entire collection with title
-    fun storeCollection(title: String): Boolean {
+    fun storeCollection(title: String) {
         if (title.isNotEmpty()) {
-            try {
-                // Create temporary Run object for serialization
-                val run = Run(title,
-                    groundTruth as List<FloatArray>,
-                    measurements as List<Measurement>,
-                    waypoints as List<Measurement>)
-                val runJson = Json.encodeToString(run)
-                Log.d("SaveToFile", "Content: $runJson")
-                // Write to file
-                val file = File(appContext.filesDir, "$title.json")
-                ioScope.launch {
+            // Remember takesNew
+            val tookNew: Boolean = takesNew
+            takesNew = false
+            // Save success
+            var success = false
+            ioScope.launch() {
+                try {
+                    // Create temporary Run object for serialization
+                    val run = Run(
+                        title,
+                        groundTruth as List<FloatArray>,
+                        measurements as List<Measurement>,
+                        waypoints as List<Measurement>
+                    )
+                    val runJson = Json.encodeToString(run)
+                    Log.d("SaveToFile", "Content: $runJson")
+                    // Write to file
+                    val file = File(appContext.filesDir, "$title.json")
                     file.writeText(runJson)
+
+                    val absPath = file.absolutePath
+                    Log.d("SaveToFile", "Path: $absPath")
+                    success = true
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Run",
+                        AnnotatedString(runJson))) // Copy json to clipboard
+                    takesNew = tookNew
+                } catch (e: Exception) {
+                    Log.e("SaveToFile", "Failed to save run: ${e.message}")
+                    takesNew = tookNew
                 }
-                val absPath = file.absolutePath
-                Log.d("SaveToFile", "Path: $absPath")
-                return true
-            } catch (e: Exception) {
-                Log.e("SaveToFile", "Failed to save run: ${e.message}")
             }
         } else {
             Log.w("SaveToFile", "No title was provided")
         }
-        return false
     }
     // Load entire collection with title and return title
-    fun loadCollection(title: String): Boolean {
+    fun loadCollection(title: String) {
         if (title.isNotEmpty()) {
             // Remember takesNew
             val tookNew: Boolean = takesNew
@@ -169,19 +185,16 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
                     measurements.addAll(run.measurements)
                     waypoints.addAll(run.waypoints)
                     Log.d("LoadFromFile", "Path: $absPath")
-                    // Restore takesNew, then return
-                    takesNew = tookNew
                     success = true
+                    takesNew = tookNew
                 } catch (e: Exception) {
                     Log.e("LoadFromFile", "Failed to load run: ${e.message}")
-                    // Restore takesNew, then return
+
                     takesNew = tookNew
                 }
             }
-            return success
         } else {
             Log.w("LoadFromFile", "No title was provided")
-            return false
         }
     }
 
