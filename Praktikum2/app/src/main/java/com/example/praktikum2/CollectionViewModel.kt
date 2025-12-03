@@ -9,7 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToSting
+import kotlinx.serialization.encodeToString
 import java.io.File
 
 // import kotlin.time.Instant
@@ -59,7 +59,8 @@ Usage:
  */
 
 class CollectionViewModel(private val appContext: Context): ViewModel() {
-    private var groundTruth = mutableListOf<FloatArray>()
+    private val ioScope = viewModelScope + Dispatchers.IO
+    private var groundTruth: MutableList<FloatArray> = mutableListOf()
     fun getGroundTruth(): List<FloatArray> { return groundTruth as List<FloatArray> }
     fun setGroundTruth(gnd: MutableList<FloatArray>) { groundTruth = gnd }
 
@@ -69,10 +70,10 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
     fun setTakesNew(b: Boolean) { takesNew = b }
 
     // Store and get measurements and waypoints
-    private var measurements = mutableListOf<Measurement>()
+    private var measurements: MutableList<Measurement> = mutableListOf()
     fun getMeasurements(): List<Measurement> { return measurements }
     fun getMeasurementsCount(): Int { return measurements.size}
-    private var waypoints = mutableListOf<Measurement>()
+    private var waypoints: MutableList<Measurement> = mutableListOf()
     fun getWaypoints(): List<Measurement> { return waypoints }
     fun getWaypointsCount(): Int { return waypoints.size }
 
@@ -108,52 +109,91 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
 
 
     /*
-    Scheme:
+    Intended json scheme:
     {
         title: String,
         groundTruth: [ [Float, Float], ...],
-        measurements: [ {longitude: Float, latitude: Float, time: Long}, ...],
-        waypoints: [  ],
+        measurements: [ {longitude: Float, latitude: Float, time: Long}, ... ],
+        waypoints: [ {longitude: Float, latitude: Float, time: Long}, ... ],
     }
      */
     // Store entire collection with title
-    fun storeCollection(title: String) {
+    fun storeCollection(title: String): Boolean {
         if (title.isNotEmpty()) {
             try {
                 // Create temporary Run object for serialization
-                val run = Run(title, groundTruth, measurements, waypoints)
+                val run = Run(title,
+                    groundTruth as List<FloatArray>,
+                    measurements as List<Measurement>,
+                    waypoints as List<Measurement>)
                 val runJson = Json.encodeToString(run)
+                Log.d("SaveToFile", "Content: $runJson")
                 // Write to file
                 val file = File(appContext.filesDir, "$title.json")
-                file.writeText(runJson)
+                ioScope.launch {
+                    file.writeText(runJson)
+                }
                 val absPath = file.absolutePath
                 Log.d("SaveToFile", "Path: $absPath")
+                return true
             } catch (e: Exception) {
                 Log.e("SaveToFile", "Failed to save run: ${e.message}")
             }
         } else {
             Log.w("SaveToFile", "No title was provided")
         }
+        return false
     }
     // Load entire collection with title and return title
-    fun loadCollectionU(title: String): String {
+    fun loadCollection(title: String): Boolean {
         if (title.isNotEmpty()) {
+            // Remember takesNew
+            val tookNew: Boolean = takesNew
+            takesNew = false
+            // Clear to avoid errors when clearing empty lists
+            groundTruth.clear()
+            measurements.clear()
+            waypoints.clear()
             try {
                 // Read from file
                 val file = File(appContext.filesDir, "$title.json")
                 val absPath = file.absolutePath
-                val run: Run = Json.decodeFromString<Run>(file.readText())
-                // Set local variables
-                groundTruth = run.groundTruth as MutableList<FloatArray>
-                measurements = run.measurements as MutableList<Measurement>
-                waypoints = run.waypoints as MutableList<Measurement>
+                ioScope.launch {
+                    val runJson = file.readText()
+                    Log.d("LoadFromFile", "Content: $runJson")
+                    val run: Run = Json.decodeFromString<Run>(runJson)
+                    // Set local variables
+                    groundTruth.addAll(run.groundTruth)
+                    measurements.addAll(run.measurements)
+                    waypoints.addAll(run.waypoints)
+                }
                 Log.d("LoadFromFile", "Path: $absPath")
-                return run.title
+                // Restore takesNew, then return
+                takesNew = tookNew
+                return true
             } catch (e: Exception) {
                 Log.e("LoadFromFile", "Failed to load run: ${e.message}")
+
+                // Restore takesNew, then return
+                takesNew = tookNew
             }
         } else {
             Log.w("LoadFromFile", "No title was provided")
         }
+        return false
+    }
+
+    fun clearCollection(): Array<Int> {
+        // Remember takesNew
+        val tookNew: Boolean = takesNew
+        takesNew = false
+        // Save count for visual feedback, then clear
+        val arr: Array<Int> = arrayOf(getMeasurementsCount(), getWaypointsCount())
+        groundTruth.clear()
+        measurements.clear()
+        waypoints.clear()
+        // Restore takesNew, then return
+        takesNew = tookNew
+        return arr
     }
 }
