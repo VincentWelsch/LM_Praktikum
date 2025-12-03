@@ -206,7 +206,7 @@ fun noTitleToast(context: Context) {
 }
 
 fun addedWaypointToast(context: Context, longitude: Float, latitude: Float) {
-    val toastTest = "Added waypoint at $longitude, $latitude"
+    val toastTest = "Added waypoint at $latitude, $longitude"
     Toast.makeText(context, toastTest, Toast.LENGTH_SHORT).show()
 }
 
@@ -272,13 +272,12 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
                     noTitleToast(ctx)
                 } else {
                     if (!collectionModel.loadCollection(title)) {
-                        collectionModel.loadCollection(title)
+                        actionFailedToast(ctx)
                     } else {
                         foundMeasurementsToast(
                             ctx,
                             collectionModel.getMeasurementsCount(),
-                            collectionModel.getWaypointsCount()
-                        )
+                            collectionModel.getWaypointsCount())
                     }
                 }
             }) { Text("Load") }
@@ -509,8 +508,6 @@ fun SensorConfig(
         Text("Since last update")
         Button(onClick = {
             if (!takeNew) return@Button
-            var longitude: Float = Float.NaN
-            var latitude: Float = Float.NaN
             if (currentMethod != "fused") {
                 // Request single location for "gps" or "network"
                 @SuppressLint("MissingPermission")
@@ -520,8 +517,12 @@ fun SensorConfig(
                     ContextCompat.getMainExecutor(ctx),
                     { location ->
                         if (location != null) {
-                            longitude = location.longitude.toFloat()
-                            latitude = location.latitude.toFloat()
+                            collectionModel.addWaypoint(location.longitude.toFloat(),
+                                location.latitude.toFloat())
+                            addedWaypointToast(ctx, location.longitude.toFloat(),
+                                location.latitude.toFloat())
+                        } else {
+                            actionFailedToast(ctx)
                         }
                     }
                 )
@@ -532,22 +533,15 @@ fun SensorConfig(
                     positionPriority,
                     CancellationTokenSource().token).addOnSuccessListener { location ->
                     if (location != null) {
-                        longitude = location.longitude.toFloat()
-                        latitude = location.latitude.toFloat()
+                        collectionModel.addWaypoint(location.longitude.toFloat(),
+                            location.latitude.toFloat())
+                        addedWaypointToast(ctx, location.longitude.toFloat(),
+                            location.latitude.toFloat())
                     }
                 }.addOnFailureListener { exception ->
-                    Log.e("", "")
+                    Log.e("GetNextWaypoint", "$exception")
+                    actionFailedToast(ctx)
                 }
-            }
-
-            if (!longitude.isNaN() && !latitude.isNaN()) {
-                // Add waypoint and update display
-                collectionModel.addWaypoint(longitude, latitude)
-                // Visual feedback
-                addedWaypointToast(ctx, longitude, latitude)
-            } else {
-                actionFailedToast(ctx)
-                Log.e("CurrentLocation", "Failed to get location")
             }
         }) { Text("Next Waypoint") }
         Row {
