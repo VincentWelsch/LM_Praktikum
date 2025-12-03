@@ -154,11 +154,13 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
             groundTruth.clear()
             measurements.clear()
             waypoints.clear()
-            try {
-                // Read from file
-                val file = File(appContext.filesDir, "$title.json")
-                val absPath = file.absolutePath
-                ioScope.launch {
+            // Save success
+            var success = false
+            ioScope.launch {
+                try {
+                    // Read from file
+                    val file = File(appContext.filesDir, "$title.json")
+                    val absPath = file.absolutePath
                     val runJson = file.readText()
                     Log.d("LoadFromFile", "Content: $runJson")
                     val run: Run = Json.decodeFromString<Run>(runJson)
@@ -166,21 +168,21 @@ class CollectionViewModel(private val appContext: Context): ViewModel() {
                     groundTruth.addAll(run.groundTruth)
                     measurements.addAll(run.measurements)
                     waypoints.addAll(run.waypoints)
+                    Log.d("LoadFromFile", "Path: $absPath")
+                    // Restore takesNew, then return
+                    takesNew = tookNew
+                    success = true
+                } catch (e: Exception) {
+                    Log.e("LoadFromFile", "Failed to load run: ${e.message}")
+                    // Restore takesNew, then return
+                    takesNew = tookNew
                 }
-                Log.d("LoadFromFile", "Path: $absPath")
-                // Restore takesNew, then return
-                takesNew = tookNew
-                return true
-            } catch (e: Exception) {
-                Log.e("LoadFromFile", "Failed to load run: ${e.message}")
-
-                // Restore takesNew, then return
-                takesNew = tookNew
             }
+            return success
         } else {
             Log.w("LoadFromFile", "No title was provided")
+            return false
         }
-        return false
     }
 
     fun clearCollection(): Array<Int> {
