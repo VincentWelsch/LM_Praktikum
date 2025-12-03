@@ -1,6 +1,7 @@
 package com.example.praktikum2
 
 import android.annotation.SuppressLint
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationListener
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Button
@@ -30,7 +30,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.getSystemService
 import com.example.praktikum2.ui.theme.Praktikum2Theme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -55,13 +55,17 @@ import kotlin.math.roundToInt
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-
+        // https://stackoverflow.com/a/19253868
+        val clipboard: ClipboardManager = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
         enableEdgeToEdge()
         setContent {
             Praktikum2Theme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Application(Modifier.wrapContentHeight().padding(innerPadding),
-                        locationManager)
+                    Application(Modifier
+                        .wrapContentHeight()
+                        .padding(innerPadding),
+                        locationManager,
+                        clipboard)
                 }
             }
         }
@@ -119,10 +123,10 @@ class MainActivity : ComponentActivity() {
 
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
-fun Application(modifier: Modifier, locationManager: LocationManager) {
+fun Application(modifier: Modifier, locationManager: LocationManager, clipboard: ClipboardManager) {
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
-    val collectionModel = CollectionViewModel(LocalContext.current)
+    val collectionModel = CollectionViewModel(LocalContext.current, clipboard)
     Menu(modifier, locationManager, fusedLocationProviderClient, collectionModel)
 }
 
@@ -246,15 +250,11 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
                 if (title.isEmpty()) {
                     noTitleToast(ctx)
                 } else {
-                    if (!collectionModel.storeCollection(title)) {
-                        actionFailedToast(ctx)
-                    } else {
-                        foundMeasurementsToast(
-                            ctx,
-                            collectionModel.getMeasurementsCount(),
-                            collectionModel.getWaypointsCount()
-                        )
-                    }
+                    collectionModel.storeCollection(title)
+                    foundMeasurementsToast(
+                        ctx,
+                        collectionModel.getMeasurementsCount(),
+                        collectionModel.getWaypointsCount())
                 }
             }) { Text("Store") }
         }
@@ -271,14 +271,11 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
                 if (title.isEmpty()) {
                     noTitleToast(ctx)
                 } else {
-                    if (!collectionModel.loadCollection(title)) {
-                        actionFailedToast(ctx)
-                    } else {
-                        foundMeasurementsToast(
-                            ctx,
-                            collectionModel.getMeasurementsCount(),
-                            collectionModel.getWaypointsCount())
-                    }
+                    collectionModel.loadCollection(title)
+                    foundMeasurementsToast(
+                        ctx,
+                        collectionModel.getMeasurementsCount(),
+                        collectionModel.getWaypointsCount())
                 }
             }) { Text("Load") }
         }
