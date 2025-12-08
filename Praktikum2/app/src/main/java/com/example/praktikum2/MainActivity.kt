@@ -50,6 +50,17 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.*
+import androidx.preference.PreferenceManager
+import org.osmdroid.config.Configuration
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+
 
 @RequiresApi(Build.VERSION_CODES.R)
 class MainActivity : ComponentActivity() {
@@ -91,6 +102,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val ctx = applicationContext
+        Configuration.getInstance().load(ctx, PreferenceManager.getDefaultSharedPreferences(ctx))
         enableEdgeToEdge()
 
         // Get requested permissions from AndroidManifest.xml
@@ -140,7 +153,28 @@ fun Menu(modifier: Modifier,
     // Window selection: SensorConfig and RecordWindow (0) or DisplayWindow (1)
     var window by remember { mutableStateOf(0)}
     // Predetermined routes
-    val route1: List<FloatArray> = listOf(floatArrayOf(1f, 2f)) // <- TODO: Add first route using floatArrayOf()
+    val Route1_Geo_Points: List<GeoPoint> = listOf(GeoPoint(51.44785, 7.27073),
+        GeoPoint(51.44755, 7.27099),
+        GeoPoint(51.4473, 7.2712),
+        GeoPoint(51.44725, 7.27105),
+        GeoPoint(51.44713, 7.27116),
+        GeoPoint(51.44717, 7.27131),
+        GeoPoint(51.44696, 7.27148),
+        GeoPoint(51.44676, 7.27166),
+        GeoPoint(51.44651, 7.27188),
+        GeoPoint(51.44629, 7.27206),
+        GeoPoint(51.44616, 7.27221),
+        GeoPoint(51.44584, 7.27275),
+        GeoPoint(51.44624, 7.27281),
+        GeoPoint(51.44629, 7.27294),
+        GeoPoint(51.44659, 7.27272),
+        GeoPoint(51.44687, 7.27247),
+        GeoPoint(51.44718, 7.2722),
+        GeoPoint(51.44727, 7.27253),
+        GeoPoint(51.44759, 7.27224),
+        GeoPoint(51.44789, 7.27198))
+
+    val route1: List<FloatArray> = convertGeoPointToFloat(Route1_Geo_Points)
     val route2: List<FloatArray> = listOf() // <- TODO: Add second route using floatArrayOf()
     val route3: List<FloatArray> = listOf() // <- TODO: Add third route using floatArrayOf()
     val ctx: Context = LocalContext.current
@@ -191,11 +225,26 @@ fun Menu(modifier: Modifier,
                     }
                 }
                 1 -> {
-                    // DisplayWindow(collectionModel) // TODO: define DisplayWindow
+                    DisplayWindow(collectionModel, modifier)
                 }
             }
         }
     }
+}
+fun convertFloatToGeoPoint(list: List<FloatArray>): List<GeoPoint> {
+    val geoPointList = mutableListOf<GeoPoint>()
+    for (point in list) {
+        geoPointList.add(GeoPoint(point[0].toDouble(), point[1].toDouble()))
+    }
+    return geoPointList
+}
+
+fun convertGeoPointToFloat(list: List<GeoPoint>): List<FloatArray> {
+    val floatList = mutableListOf<FloatArray>()
+    for (point in list) {
+        floatList.add(floatArrayOf(point.latitude.toFloat(), point.longitude.toFloat()))
+    }
+    return floatList
 }
 
 // Visual feedback
@@ -551,5 +600,54 @@ fun SensorConfig(
                     takeNew = checked
                 })
         }
+
     }
 }
+@Composable
+fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modifier) {
+    // Holt die Ground-Truth-Route aus dem ViewModel
+    val routePoints = collectionModel.getGroundTruth()
+
+    // AndroidView wird verwendet, um eine klassische Android-View (MapView) in Compose zu nutzen
+    AndroidView(
+        modifier = modifier.fillMaxSize(),
+        factory = {
+            MapView(it).apply {
+                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                controller.setZoom(15.0)
+                setMultiTouchControls(true)
+                controller.setCenter(
+                    GeoPoint(
+                        51.482582,
+                        7.217153
+                    )
+                ) // Default: Bochumer Innenstadt (nur Startposition)
+            }
+        },
+        update = { mapView ->
+            // Dieser Block wird ausgeführt, wenn sich die Daten (routePoints) ändern
+
+            // 2. Alle bisherigen Overlays (Linien, Marker etc.) entfernen
+            mapView.overlays.clear()
+
+            if (routePoints.isNotEmpty()) {
+                // 3. Eine Polyline (Linie) aus den Routenpunkten erstellen
+                val polyline = org.osmdroid.views.overlay.Polyline()
+                val geoPoints = convertFloatToGeoPoint(routePoints) // Umwandlung in GeoPoints
+                polyline.setPoints(geoPoints)
+                polyline.color = android.graphics.Color.RED // Farbe der Linie
+                polyline.width = 8.0f // Dicke der Linie
+
+                // 4. Die Polyline zur Karte hinzufügen
+                mapView.overlays.add(polyline)
+
+                // 5. Die Karte auf den Startpunkt der Route zentrieren
+                mapView.controller.setCenter(geoPoints.first())
+            }
+
+            // Die Karte neu zeichnen, um die Änderungen anzuzeigen
+            mapView.invalidate()
+        }
+    )
+}
+
