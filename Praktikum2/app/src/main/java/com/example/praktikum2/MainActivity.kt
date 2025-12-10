@@ -38,6 +38,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.core.content.ContextCompat
@@ -151,6 +153,7 @@ fun Menu(modifier: Modifier,
     var window by remember { mutableStateOf(0)}
     // Predetermined routes
     val route1: List<FloatArray> = listOf(
+        floatArrayOf(51.44785f, 7.27073f),
         floatArrayOf(51.44755f, 7.27099f),
         floatArrayOf(51.4473f, 7.2712f),
         floatArrayOf(51.44725f, 7.27105f),
@@ -205,7 +208,7 @@ fun Menu(modifier: Modifier,
                         collectionModel.setGroundTruth(emptyList<FloatArray>().toMutableList())
                     }
                     addedGroundTruthToast(ctx, collectionModel.getGroundTruth().size)
-            }) { Text("Route 1") }
+            }) { Text("Route 1 - HSBO") }
             Button( // Button for selecting route 2
                 onClick = {
                     if (route2.isNotEmpty()) {
@@ -214,7 +217,7 @@ fun Menu(modifier: Modifier,
                         collectionModel.setGroundTruth(emptyList<FloatArray>().toMutableList())
                     }
                     addedGroundTruthToast(ctx, collectionModel.getGroundTruth().size)
-            }) { Text("Route 2") }
+            }) { Text("Route 2 - RUB") }
         }
         Row { // Window selection, fill width below ground truth selection
             Button(onClick = { window = 0 }) { Text("Record") }
@@ -631,7 +634,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
 
     // AndroidView wird verwendet, um eine klassische Android-View (MapView) in Compose zu nutzen
     AndroidView(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().clip(RectangleShape),
         factory = {
             MapView(it).apply {
                 setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
