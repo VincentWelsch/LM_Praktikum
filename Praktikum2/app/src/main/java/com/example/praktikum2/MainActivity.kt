@@ -232,7 +232,7 @@ fun Menu(modifier: Modifier,
                     DisplayWindow(collectionModel, modifier)
                 }
                 2 -> {
-                    AnalyzeWindow(modifier, collectionModel, errorModel)
+                    AnalyzeWindow(modifier, errorModel)
                 }
             }
         }
@@ -660,12 +660,11 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
 
 @Composable
 fun AnalyzeWindow(modifier: Modifier,
-                  collectionModel: CollectionViewModel,
                   errorModel: PositionErrorViewModel) {
-    // TODO: Graph
     var confidence by remember { mutableStateOf(0.5f) }
     var positionErrors by remember { mutableStateOf(emptyList<FloatArray>()) }
     var errorFromConfidence by remember { mutableStateOf(1f) }
+    // TODO: Graph to display position error CDF
     Column(modifier) {
         Text("Confidence level: $confidence")
         Text("Error from confidence level: $errorFromConfidence")
