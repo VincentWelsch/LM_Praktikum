@@ -70,7 +70,7 @@ class CollectionViewModel(
     fun setGroundTruth(gnd: MutableList<FloatArray>) { groundTruth = gnd }
 
     // Allow or disallow adding new data
-    private var takesNew = true;
+    private var takesNew = false;
     fun getTakesNew(): Boolean { return takesNew }
     fun setTakesNew(b: Boolean) { takesNew = b }
 

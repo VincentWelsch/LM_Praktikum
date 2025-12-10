@@ -558,7 +558,6 @@ fun SensorConfig(
         // Display current count of measurements and waypoints
         val ctx: Context = LocalContext.current
         var takeNew: Boolean by remember { mutableStateOf(collectionModel.getTakesNew()) }
-        Text("Since last update")
         Button(onClick = {
             if (!takeNew) return@Button
             if (currentMethod != "fused") {
@@ -592,14 +591,14 @@ fun SensorConfig(
                             location.latitude.toFloat())
                     }
                 }.addOnFailureListener { exception ->
-                    Log.e("GetNextWaypoint", "$exception")
+                    Log.e("WaypointReached", "$exception")
                     actionFailedToast(ctx)
                 }
             }
-        }) { Text("Next Waypoint") }
+        }) { Text("Waypoint reached") }
         Row {
             // Toggle if new data can be added to collectionModel
-            Text("Allow new")
+            Text("Allow new incoming data")
             Switch(checked = takeNew,
                 // Presumably, this is not updated if takeNew collectionModel is updated from elsewhere
                 onCheckedChange = { checked ->
