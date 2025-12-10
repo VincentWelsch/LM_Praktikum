@@ -28,29 +28,39 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
                     *  Interpolate ground truth position between waypoint and next waypoint using
                     *  vectors. Let latitude be x and longitude be y
                     *
-                    *  Let g be groundTruth and t_d be the time diff between waypoint and measurement.
-                    *  To get gtPosition:
-                    *  g[i] + t_d * (g[i + 1] - g[i])       both for x and for y
+                    *  Let m be measurement, g be groundTruth, t_d be the time diff between waypoint
+                    *  and measurement. We need normalized "Verbindungsvektor" between both waypoints
+                    *  to get gtPosition:
+                    *       g[i] + t_d * (g[i + 1] - g[i]) / norm       for both x and for y
                     *
-                    *  Error as difference between measurement and gtPosition:
-                    *  m - gtPosition                       both for x and for y
+                    *  Error as distance between measurement and gtPosition. Vector between those
+                    *  two is:
+                    *       m - gtPosition                              for both x and for y
+                    *  Distance is sqrt(x^2 + y^2)
                     */
+                    // Time difference between w0 and m
                     val timeDiff = measurement.time - waypoints[i].time
+                    // Vector between w0 and w1 ("Verbindungsvektor")
+                    val wDiff = floatArrayOf(groundTruth[i + 1][0] - groundTruth[i][0],
+                        groundTruth[i + 1][1] - groundTruth[i][1])
+                    // wDiff with length of 1 ("Richtungsvektor")
+                    val norm = sqrt(wDiff[0].pow(2) + wDiff[1].pow(2))
+                    // Ground truth position
                     val gtPosition = floatArrayOf(
-                        // Waypoint i as Stützvektor and "Verbindungsvektor" to next as "Richtungsvektor"
-                        groundTruth[i][0] + timeDiff * (groundTruth[i + 1][0] - groundTruth[i][0]),
-                        groundTruth[i][1] + timeDiff * (groundTruth[i + 1][1] - groundTruth[i][1])
+                        // Waypoint i as "Stützvektor" and wDiff/norm as normalized "Richtungsvektor"
+                        groundTruth[i][0] + timeDiff * wDiff[0] / norm,
+                        groundTruth[i][1] + timeDiff * wDiff[1] / norm
                     )
+                    // Vector between gtPosition and m
                     val positionDiff = floatArrayOf(
                         measurement.latitude - gtPosition[0],
                         measurement.longitude - gtPosition[1]
                     )
-                    // Calculate and add length of vector
+                    // Error as length of vector between gtPosition and m
                     positionErrors.add(sqrt(positionDiff[0].pow( 2) + positionDiff[1].pow(2)))
                 }
             }
         }
-        positionErrors = mutableListOf()
     }
 
     // Get a CDF from a list of errors
