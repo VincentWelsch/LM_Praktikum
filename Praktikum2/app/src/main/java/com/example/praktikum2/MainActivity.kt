@@ -150,54 +150,49 @@ fun Menu(modifier: Modifier,
     // Window selection: SensorConfig and RecordWindow (0) or DisplayWindow (1)
     var window by remember { mutableStateOf(0)}
     // Predetermined routes
-    val Route1_Geo_Points: List<GeoPoint> = listOf(GeoPoint(51.44785, 7.27073),
-        GeoPoint(51.44755, 7.27099),
-        GeoPoint(51.4473, 7.2712),
-        GeoPoint(51.44725, 7.27105),
-        GeoPoint(51.44713, 7.27116),
-        GeoPoint(51.44717, 7.27131),
-        GeoPoint(51.44696, 7.27148),
-        GeoPoint(51.44676, 7.27166),
-        GeoPoint(51.44651, 7.27188),
-        GeoPoint(51.44629, 7.27206),
-        GeoPoint(51.44616, 7.27221),
-        GeoPoint(51.44584, 7.27275),
-        GeoPoint(51.44624, 7.27281),
-        GeoPoint(51.44629, 7.27294),
-        GeoPoint(51.44659, 7.27272),
-        GeoPoint(51.44687, 7.27247),
-        GeoPoint(51.44718, 7.2722),
-        GeoPoint(51.44727, 7.27253),
-        GeoPoint(51.44759, 7.27224),
-        GeoPoint(51.44789, 7.27198)
+    val route1: List<FloatArray> = listOf(
+        floatArrayOf(51.44755f, 7.27099f),
+        floatArrayOf(51.4473f, 7.2712f),
+        floatArrayOf(51.44725f, 7.27105f),
+        floatArrayOf(51.44713f, 7.27116f),
+        floatArrayOf(51.44717f, 7.27131f),
+        floatArrayOf(51.44696f, 7.27148f),
+        floatArrayOf(51.44676f, 7.27166f),
+        floatArrayOf(51.44651f, 7.27188f),
+        floatArrayOf(51.44629f, 7.27206f),
+        floatArrayOf(51.44616f, 7.27221f),
+        floatArrayOf(51.44584f, 7.27275f),
+        floatArrayOf(51.44624f, 7.27281f),
+        floatArrayOf(51.44629f, 7.27294f),
+        floatArrayOf(51.44659f, 7.27272f),
+        floatArrayOf(51.44687f, 7.27247f),
+        floatArrayOf(51.44718f, 7.2722f),
+        floatArrayOf(51.44727f, 7.27253f),
+        floatArrayOf(51.44759f, 7.27224f),
+        floatArrayOf(51.44789f, 7.27198f)
     )
-
-    val Route2_Geo_Points: List<GeoPoint> = listOf(
-        GeoPoint(51.44631,7.26073),
-        GeoPoint(51.4463,7.26039),
-        GeoPoint(51.44624,7.26018),
-        GeoPoint(51.44591,7.26009),
-        GeoPoint(51.44584,7.25988),
-        GeoPoint(51.44582,7.25979),
-        GeoPoint(51.44542,7.26004),
-        GeoPoint(51.44516,7.26006),
-        GeoPoint(51.44491,7.26005),
-        GeoPoint(51.44465,7.26021),
-        GeoPoint(51.44436,7.26052),
-        GeoPoint(51.44414,7.26075),
-        GeoPoint(51.4439,7.26097),
-        GeoPoint(51.44361,7.26125),
-        GeoPoint(51.44345,7.26154),
-        GeoPoint(51.44316,7.26183),
-        GeoPoint(51.44284,7.26219),
-        GeoPoint(51.4431,7.2629),
-        GeoPoint(51.44343,7.26264),
-        GeoPoint(51.44379,7.2624)
+    val route2: List<FloatArray> = listOf(
+        floatArrayOf(51.44631f,7.26073f),
+        floatArrayOf(51.4463f,7.26039f),
+        floatArrayOf(51.44624f,7.26018f),
+        floatArrayOf(51.44591f,7.26009f),
+        floatArrayOf(51.44584f,7.25988f),
+        floatArrayOf(51.44582f,7.25979f),
+        floatArrayOf(51.44542f,7.26004f),
+        floatArrayOf(51.44516f,7.26006f),
+        floatArrayOf(51.44491f,7.26005f),
+        floatArrayOf(51.44465f,7.26021f),
+        floatArrayOf(51.44436f,7.26052f),
+        floatArrayOf(51.44414f,7.26075f),
+        floatArrayOf(51.4439f,7.26097f),
+        floatArrayOf(51.44361f,7.26125f),
+        floatArrayOf(51.44345f,7.26154f),
+        floatArrayOf(51.44316f,7.26183f),
+        floatArrayOf(51.44284f,7.26219f),
+        floatArrayOf(51.4431f,7.2629f),
+        floatArrayOf(51.44343f,7.26264f),
+        floatArrayOf(51.44379f,7.2624f)
     )
-
-    val route1: List<FloatArray> = convertGeoPointToFloat(Route1_Geo_Points)
-    val route2: List<FloatArray> = convertGeoPointToFloat(Route2_Geo_Points)
-    val route3: List<FloatArray> = listOf() // <- TODO: Add third route using floatArrayOf()
     val ctx: Context = LocalContext.current
 
     Column(modifier = modifier) {
@@ -220,15 +215,6 @@ fun Menu(modifier: Modifier,
                     }
                     addedGroundTruthToast(ctx, collectionModel.getGroundTruth().size)
             }) { Text("Route 2") }
-            Button( // Button for selecting route 3
-                onClick = {
-                    if (route3.isNotEmpty()) {
-                        collectionModel.setGroundTruth(route3 as MutableList<FloatArray>)
-                    } else {
-                        collectionModel.setGroundTruth(emptyList<FloatArray>().toMutableList())
-                    }
-                    addedGroundTruthToast(ctx, collectionModel.getGroundTruth().size)
-            }) { Text("Route 3") }
         }
         Row { // Window selection, fill width below ground truth selection
             Button(onClick = { window = 0 }) { Text("Record") }
@@ -309,7 +295,7 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
         Clear Load */
     Column(modifier) {
         // Input run or file name
-        TextField(value = title, onValueChange = { value -> title = value })
+        TextField(value = title, onValueChange = { value -> title = value }, label = { Text("Title") })
         Row { // First row: Check and Store
             // Check for data in collectionModel
             Button(onClick = {
@@ -377,7 +363,7 @@ fun PositionControl(
         Column(modifier.selectableGroup()) { // Method
             listOf(
                 LocationManager.GPS_PROVIDER,
-                LocationManager.NETWORK_PROVIDER,
+                // LocationManager.NETWORK_PROVIDER, // temporarily disabled for Praktikum2
                 "fused"
             ).forEach { method ->
                 Row(
@@ -406,7 +392,7 @@ fun PositionControl(
         }
 
         if (currentMethod != "fused") { // Config for gps and network
-            Column(modifier) {
+            /* Column(modifier) {
                 Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
                 Slider(
                     value = positionMinTimeMs.toFloat(),
@@ -423,9 +409,9 @@ fun PositionControl(
                     onValueChangeFinished = onValueChangeFinished,
                     valueRange = 0f..100f
                 )
-            }
+            } */ // temporarily disabled for Praktikum2
         } else { // Config for fused
-            Column(modifier) {
+            /*Column(modifier) {
                 Text(text = "Position priority: $positionPriority")
                 Slider(
                     value = positionPriority.toFloat(),
@@ -442,6 +428,16 @@ fun PositionControl(
                     onValueChangeFinished = onValueChangeFinished,
                     valueRange = 0f..20000f
                 )
+            }*/ // temporarily disabled for Praktikum2
+            Column(modifier) {
+                Text(text = "Position priority: $positionPriority")
+                Slider(
+                    value = positionPriority.toFloat(),
+                    steps = 1, // 100 -> step -> 102
+                    onValueChange = onPositionPriorityChange,
+                    onValueChangeFinished = onValueChangeFinished,
+                    valueRange = 100f..102f
+                ) // Copy of the above with less options
             }
         }
     }
@@ -458,11 +454,12 @@ fun SensorConfig(
     // gps, network, or fused
     var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
     // for gps and network
+    var positionMinTimeMs: Int by remember { mutableIntStateOf(1000) }
+    var positionDistanceM: Float by remember { mutableFloatStateOf(1f) }
+    // for fused
     var positionPriority: Int by remember { mutableIntStateOf(Priority.PRIORITY_BALANCED_POWER_ACCURACY) }
     var positionIntervalMs: Int by remember { mutableIntStateOf(1000) }
-    // for fused
-    var positionMinTimeMs: Int by remember { mutableIntStateOf(1000) }
-    var positionDistanceM: Float by remember { mutableFloatStateOf(10f) }
+
 
     // Init position event listeners
     val locationListener: LocationListener = remember {
@@ -576,7 +573,7 @@ fun SensorConfig(
         // Display current count of measurements and waypoints
         val ctx: Context = LocalContext.current
         var takeNew: Boolean by remember { mutableStateOf(collectionModel.getTakesNew()) }
-        Button(onClick = {
+        Button(enabled = takeNew, onClick = {
             if (!takeNew) return@Button
             if (currentMethod != "fused") {
                 // Request single location for "gps" or "network"
