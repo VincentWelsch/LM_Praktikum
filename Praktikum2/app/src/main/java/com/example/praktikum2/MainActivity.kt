@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
+import android.widget.Spinner
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -134,7 +135,8 @@ fun Application(modifier: Modifier, locationManager: LocationManager, clipboard:
     val ctx = LocalContext.current
     val fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(ctx)
     val collectionModel = CollectionViewModel(LocalContext.current, clipboard)
-    Menu(modifier, locationManager, fusedLocationProviderClient, collectionModel)
+    val errorModel = PositionErrorViewModel(collectionModel)
+    Menu(modifier, locationManager, fusedLocationProviderClient, collectionModel, errorModel)
 }
 
 // Parent composable
@@ -143,7 +145,8 @@ fun Application(modifier: Modifier, locationManager: LocationManager, clipboard:
 fun Menu(modifier: Modifier,
          locationManager: LocationManager,
          fusedLocationProviderClient: FusedLocationProviderClient,
-         collectionModel: CollectionViewModel) {
+         collectionModel: CollectionViewModel,
+         errorModel: PositionErrorViewModel) {
     // Window selection: SensorConfig and RecordWindow (0) or DisplayWindow (1)
     var window by remember { mutableStateOf(0)}
     // Predetermined routes
@@ -230,6 +233,7 @@ fun Menu(modifier: Modifier,
         Row { // Window selection, fill width below ground truth selection
             Button(onClick = { window = 0 }) { Text("Record") }
             Button(onClick = { window = 1 }) { Text("Display") }
+            Button(onClick = { window = 2 }) { Text("Analyze") }
         }
         Row { // Window content, remaining space
             when (window) {
@@ -244,6 +248,9 @@ fun Menu(modifier: Modifier,
                 }
                 1 -> {
                     DisplayWindow(collectionModel, modifier)
+                }
+                2 -> {
+                    AnalyzeWindow(modifier, errorModel)
                 }
             }
         }
@@ -669,3 +676,27 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
     )
 }
 
+@Composable
+fun AnalyzeWindow(modifier: Modifier,
+                  errorModel: PositionErrorViewModel) {
+    var confidence by remember { mutableStateOf(0.5f) }
+    var positionErrors by remember { mutableStateOf(emptyList<FloatArray>()) }
+    var errorFromConfidence by remember { mutableStateOf(1f) }
+    // TODO: Graph to display position error CDF
+    Column(modifier) {
+        Text("Confidence level: $confidence")
+        Text("Error from confidence level: $errorFromConfidence")
+        Slider( // Set confidence
+            value = confidence,
+            steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
+            onValueChange = { confidence = it },
+            onValueChangeFinished = {  },
+            valueRange = 0f..1f
+        )
+        Button(onClick = { // Calculate errorFromConfidence
+            errorModel.calculatePositionErrors()
+            errorFromConfidence = errorModel.getPositionErrorFromConfidence(
+                errorModel.positionErrorCDF(), confidence)
+        }) {Text("Calculate errors")}
+    }
+}
