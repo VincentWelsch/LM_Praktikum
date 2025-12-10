@@ -41,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
 import com.example.praktikum2.ui.theme.Praktikum2Theme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -51,16 +50,11 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlin.math.roundToInt
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.runtime.*
 import androidx.preference.PreferenceManager
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 
 
 @RequiresApi(Build.VERSION_CODES.R)
@@ -175,10 +169,34 @@ fun Menu(modifier: Modifier,
         GeoPoint(51.44718, 7.2722),
         GeoPoint(51.44727, 7.27253),
         GeoPoint(51.44759, 7.27224),
-        GeoPoint(51.44789, 7.27198))
+        GeoPoint(51.44789, 7.27198)
+    )
+
+    val Route2_Geo_Points: List<GeoPoint> = listOf(
+        GeoPoint(51.44631,7.26073),
+        GeoPoint(51.4463,7.26039),
+        GeoPoint(51.44624,7.26018),
+        GeoPoint(51.44591,7.26009),
+        GeoPoint(51.44584,7.25988),
+        GeoPoint(51.44582,7.25979),
+        GeoPoint(51.44542,7.26004),
+        GeoPoint(51.44516,7.26006),
+        GeoPoint(51.44491,7.26005),
+        GeoPoint(51.44465,7.26021),
+        GeoPoint(51.44436,7.26052),
+        GeoPoint(51.44414,7.26075),
+        GeoPoint(51.4439,7.26097),
+        GeoPoint(51.44361,7.26125),
+        GeoPoint(51.44345,7.26154),
+        GeoPoint(51.44316,7.26183),
+        GeoPoint(51.44284,7.26219),
+        GeoPoint(51.4431,7.2629),
+        GeoPoint(51.44343,7.26264),
+        GeoPoint(51.44379,7.2624)
+    )
 
     val route1: List<FloatArray> = convertGeoPointToFloat(Route1_Geo_Points)
-    val route2: List<FloatArray> = listOf() // <- TODO: Add second route using floatArrayOf()
+    val route2: List<FloatArray> = convertGeoPointToFloat(Route2_Geo_Points)
     val route3: List<FloatArray> = listOf() // <- TODO: Add third route using floatArrayOf()
     val ctx: Context = LocalContext.current
 
