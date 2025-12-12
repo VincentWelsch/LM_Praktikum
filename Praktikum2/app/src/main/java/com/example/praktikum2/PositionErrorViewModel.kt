@@ -1,5 +1,6 @@
 package com.example.praktikum2
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -10,18 +11,20 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
 
     fun calculatePositionErrors() {
         if (collectionModel.getGroundTruth().size != collectionModel.getWaypoints().size)
-            throw Throwable("Error: Ground truth and waypoints must be the same size")
+            // throw Throwable("Error: Ground truth and waypoints must be the same size")
+            Log.e("PositionError", "Ground truth and waypoints must be the same size")
         positionErrors.clear()
 
         val groundTruth = collectionModel.getGroundTruth() // Use for actual position of waypoints
         val measurements = collectionModel.getMeasurements() // Use for position and time
         val waypoints = collectionModel.getWaypoints() // Use for time of arrival at waypoints
 
-        for (measurement in collectionModel.getMeasurements()) {
+        for (measurement in measurements) {
             for (i in 0 until collectionModel.getGroundTruth().size) {
                 // i is the index of the waypoint
                 // Loop through waypoints to find out which "Stütz-" and "Richtungsvektor" to use
-                if (measurement.time > collectionModel.getWaypoints()[i].time) {
+                if (measurement.time > collectionModel.getWaypoints()[i].time &&
+                    measurement.time < collectionModel.getWaypoints()[i + 1].time) {
                     /* If tine of measurement is greater than time of waypoint for the first time,
                     *  measurement must be between that waypoint and the next.
                     *
@@ -65,6 +68,7 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
 
     // Get a CDF from a list of errors
     fun positionErrorCDF(): List<FloatArray> {
+        calculatePositionErrors()
         if (positionErrors.isEmpty())
             return emptyList()
         positionErrors.sort()
@@ -79,16 +83,25 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
     }
 
     // Get a position error that meets a given confidence level
-    fun getPositionErrorFromConfidence(cdf: List<FloatArray>, confidence: Float): Float {
-        if (confidence !in 0f..1f)
-            throw Throwable("Error: Confidence must be between 0 and 1")
-        if (cdf.isEmpty())
-            throw Throwable("Error: CDF is empty")
+    fun getPositionErrorFromConfidence(confidence: Float): Float {
+        if (confidence !in 0f..1f) {
+            // throw Throwable("Error: Confidence must be between 0 and 1")
+            Log.e("CDF", "Confidence must be between 0 and 1")
+            return -1f
+        }
+        val cdf = positionErrorCDF()
+        if (cdf.isEmpty()) {
+            // throw Throwable("Error: CDF is empty")
+            Log.e("CDF", "CDF is empty")
+            return -1f
+        }
+        Log.d("CDF", "Size: " + cdf.size.toString())
         if (cdf.size == 1)
             return cdf[0][0] // All data points are the same
         for (i in 0 until cdf.size) {
             if (cdf[i][1] !in 0f..1f) // Check if chance is possible
-                throw Throwable("Error: CDF contained chance not between 0 and 1")
+                // throw Throwable("Error: CDF contained chance not between 0 and 1")
+                return -1f
             if (cdf[i][1] >= confidence)
                 return cdf[i][0] // Meets confidence level
         }

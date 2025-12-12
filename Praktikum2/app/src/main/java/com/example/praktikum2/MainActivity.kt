@@ -31,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -57,6 +58,7 @@ import androidx.preference.PreferenceManager
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import java.lang.Thread.sleep
 
 
 @RequiresApi(Build.VERSION_CODES.R)
@@ -335,6 +337,7 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
                     noTitleToast(ctx)
                 } else {
                     collectionModel.loadCollection(title)
+                    sleep(500)
                     foundMeasurementsToast(
                         ctx,
                         collectionModel.getMeasurementsCount(),
@@ -542,12 +545,12 @@ fun SensorConfig(
         currentMethod = method
     }
 
-    /*DisposableEffect(Unit) {
+    DisposableEffect(Unit) {
         onDispose {
             Log.d("SensorListenerRegistration", "Disposing of all listeners")
             unregisterLocationListener(currentMethod)
         }
-    }*/
+    }
     Column(modifier) {
         PositionControl(
             currentMethod = currentMethod,
@@ -578,7 +581,9 @@ fun SensorConfig(
         var takeNew: Boolean by remember { mutableStateOf(collectionModel.getTakesNew()) }
         Button(enabled = takeNew, onClick = {
             if (!takeNew) return@Button
-            if (currentMethod != "fused") {
+            collectionModel.addWaypoint(0f,0f) // Dummy values to prevent locking
+            addedWaypointToast(ctx, 0f,0f)
+            /*if (currentMethod != "fused") {
                 // Request single location for "gps" or "network"
                 @SuppressLint("MissingPermission")
                 locationManager.getCurrentLocation(
@@ -612,7 +617,7 @@ fun SensorConfig(
                     Log.e("WaypointReached", "$exception")
                     actionFailedToast(ctx)
                 }
-            }
+            }*/
         }) { Text("Waypoint reached") }
         Row {
             // Toggle if new data can be added to collectionModel
@@ -678,6 +683,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
 @Composable
 fun AnalyzeWindow(modifier: Modifier,
                   errorModel: PositionErrorViewModel) {
+    val ctx = LocalContext.current
     var confidence by remember { mutableStateOf(0.5f) }
     var positionErrors by remember { mutableStateOf(emptyList<FloatArray>()) }
     var errorFromConfidence by remember { mutableStateOf(1f) }
@@ -693,9 +699,12 @@ fun AnalyzeWindow(modifier: Modifier,
             valueRange = 0f..1f
         )
         Button(onClick = { // Calculate errorFromConfidence
-            errorModel.calculatePositionErrors()
-            errorFromConfidence = errorModel.getPositionErrorFromConfidence(
-                errorModel.positionErrorCDF(), confidence)
+            try {
+                errorFromConfidence = errorModel.getPositionErrorFromConfidence(confidence)
+            } catch (e: Exception) {
+                Log.e("PositionError", "Failed to calculate position error: ${e.message}")
+                actionFailedToast(ctx)
+            }
         }) {Text("Calculate errors")}
     }
 }
