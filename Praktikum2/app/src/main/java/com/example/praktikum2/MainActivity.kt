@@ -654,19 +654,19 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
     // Holt die Ground-Truth-Route aus dem ViewModel
     val routePoints = collectionModel.getGroundTruth()
 
-    val mockMeasurements = listOf(
-        Measurement(longitude = 7.2605796f, latitude = 51.446224f, time = 1765459251247),
-        Measurement(longitude = 7.2603908f, latitude = 51.444588f, time = 1765459483248),
-        Measurement(longitude = 7.261326f, latitude = 51.443573f, time = 1765459594271)
-    )
-    val measurementPoints = mockMeasurements // collectionModel.getMeasurements()
+//    val mockMeasurements = listOf(
+//        Measurement(longitude = 7.2605796f, latitude = 51.446224f, time = 1765459251247),
+//        Measurement(longitude = 7.2603908f, latitude = 51.444588f, time = 1765459483248),
+//        Measurement(longitude = 7.261326f, latitude = 51.443573f, time = 1765459594271)
+//    )
+    val measurementPoints = collectionModel.getMeasurements()
 
-    val mockWaypoints = listOf(
-        Measurement(longitude = 7.2605796f, latitude = 51.445225f, time = 1765459251247),
-        Measurement(longitude = 7.2603908f, latitude = 51.44359f, time = 1765459483248),
-        Measurement(longitude = 7.261326f, latitude = 51.442574f, time = 1765459594271)
-    )
-    val waypointPoints = mockWaypoints // collectionModel.getWaypoints()
+//    val mockWaypoints = listOf(
+//        Measurement(longitude = 7.2605796f, latitude = 51.445225f, time = 1765459251247),
+//        Measurement(longitude = 7.2603908f, latitude = 51.44359f, time = 1765459483248),
+//        Measurement(longitude = 7.261326f, latitude = 51.442574f, time = 1765459594271)
+//    )
+    val waypointPoints = collectionModel.getWaypoints()
 
     // AndroidView wird verwendet, um eine klassische Android-View (MapView) in Compose zu nutzen
     AndroidView(
