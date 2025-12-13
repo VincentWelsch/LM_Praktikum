@@ -685,9 +685,14 @@ fun AnalyzeWindow(modifier: Modifier,
                   errorModel: PositionErrorViewModel) {
     val ctx = LocalContext.current
     var confidence by remember { mutableStateOf(0.5f) }
-    var positionErrors by remember { mutableStateOf(emptyList<FloatArray>()) }
+    var positionErrorCDF by remember { mutableStateOf(emptyList<FloatArray>()) }
     var errorFromConfidence by remember { mutableStateOf(1f) }
     // TODO: Graph to display position error CDF
+    Button(onClick = {
+        positionErrorCDF = errorModel.positionErrorCDF()
+    }) {
+        Text("Calculate CDF")
+    }
     Column(modifier) {
         Text("Confidence level: $confidence")
         Text("Error from confidence level: $errorFromConfidence")
@@ -705,6 +710,6 @@ fun AnalyzeWindow(modifier: Modifier,
                 Log.e("PositionError", "Failed to calculate position error: ${e.message}")
                 actionFailedToast(ctx)
             }
-        }) {Text("Calculate errors")}
+        }) {Text("Calculate error from confidence")}
     }
 }
