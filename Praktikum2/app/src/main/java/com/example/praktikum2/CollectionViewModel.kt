@@ -205,9 +205,13 @@ class CollectionViewModel(
         takesNew = false
         // Save count for visual feedback, then clear
         val arr: Array<Int> = arrayOf(getMeasurementsCount(), getWaypointsCount())
-        groundTruth.clear()
-        measurements.clear()
-        waypoints.clear()
+        try {
+            groundTruth.clear()
+            measurements.clear()
+            waypoints.clear()
+        } catch(e: Exception) {
+            Log.e("ClearCollection", "Failed to clear collection: ${e.message}")
+        }
         // Restore takesNew, then return
         takesNew = tookNew
         return arr
