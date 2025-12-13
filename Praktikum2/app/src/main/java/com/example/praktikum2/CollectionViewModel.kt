@@ -66,8 +66,9 @@ class CollectionViewModel(
     private val clipboard: ClipboardManager): ViewModel() {
     private val ioScope = viewModelScope + Dispatchers.IO
     private var groundTruth: MutableList<FloatArray> = mutableListOf()
-    fun getGroundTruth(): List<FloatArray> { return groundTruth as List<FloatArray> }
+    fun getGroundTruth(): List<FloatArray> { return groundTruth.toList() }
     fun setGroundTruth(gnd: MutableList<FloatArray>) { groundTruth = gnd }
+    // Note: toList creates a copy. We use this to prevent concurrency errors which were causing errors.
 
     // Allow or disallow adding new data
     private var takesNew = false;
@@ -76,10 +77,10 @@ class CollectionViewModel(
 
     // Store and get measurements and waypoints
     private var measurements: MutableList<Measurement> = mutableListOf()
-    fun getMeasurements(): List<Measurement> { return measurements }
+    fun getMeasurements(): List<Measurement> { return measurements.toList() }
     fun getMeasurementsCount(): Int { return measurements.size}
     private var waypoints: MutableList<Measurement> = mutableListOf()
-    fun getWaypoints(): List<Measurement> { return waypoints }
+    fun getWaypoints(): List<Measurement> { return waypoints.toList() }
     fun getWaypointsCount(): Int { return waypoints.size }
 
     // Add measurements and waypoints, return true if successful

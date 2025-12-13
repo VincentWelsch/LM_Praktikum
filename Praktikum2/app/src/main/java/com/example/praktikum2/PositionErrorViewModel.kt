@@ -20,12 +20,12 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
         val waypoints = collectionModel.getWaypoints() // Use for time of arrival at waypoints
 
         for (measurement in measurements) {
-            for (i in 0 until collectionModel.getGroundTruth().size) {
+            for (i in 0 until collectionModel.getGroundTruth().size-1) {
                 // i is the index of the waypoint
                 // Loop through waypoints to find out which "Stütz-" and "Richtungsvektor" to use
-                if (measurement.time > collectionModel.getWaypoints()[i].time &&
+                if (measurement.time >= collectionModel.getWaypoints()[i].time &&
                     measurement.time < collectionModel.getWaypoints()[i + 1].time) {
-                    /* If tine of measurement is greater than time of waypoint for the first time,
+                    /* If tine of measurement is greater equal time of waypoint for the first time,
                     *  measurement must be between that waypoint and the next.
                     *
                     *  Interpolate ground truth position between waypoint and next waypoint using
@@ -42,7 +42,8 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
                     *  Distance is sqrt(x^2 + y^2)
                     */
                     // Time difference between w0 and m
-                    val timeDiff = measurement.time - waypoints[i].time
+                    val timeDiff = (measurement.time - waypoints[i].time) /
+                            (waypoints[i + 1].time - waypoints[i].time)
                     // Vector between w0 and w1 ("Verbindungsvektor")
                     val wDiff = floatArrayOf(groundTruth[i + 1][0] - groundTruth[i][0],
                         groundTruth[i + 1][1] - groundTruth[i][1])
@@ -61,6 +62,7 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
                     )
                     // Error as length of vector between gtPosition and m
                     positionErrors.add(sqrt(positionDiff[0].pow( 2) + positionDiff[1].pow(2)))
+                    Log.d("Test", "calculated errors")
                 }
             }
         }
@@ -69,8 +71,10 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
     // Get a CDF from a list of errors
     fun positionErrorCDF(): List<FloatArray> {
         calculatePositionErrors()
-        if (positionErrors.isEmpty())
+        if (positionErrors.isEmpty()) {
+            Log.d("Test", "positionErrors empty")
             return emptyList()
+        }
         positionErrors.sort()
         val cdf: MutableList<FloatArray> = mutableListOf() // error (x) at index 0, % (y) at index 1
         var sum = 0f
