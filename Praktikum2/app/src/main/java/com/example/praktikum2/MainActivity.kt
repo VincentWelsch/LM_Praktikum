@@ -1,3 +1,5 @@
+@file:Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
+
 package com.example.praktikum2
 
 import android.annotation.SuppressLint
@@ -60,6 +62,13 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import java.lang.Thread.sleep
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
+import com.jjoe64.graphview.GraphView
+import com.jjoe64.graphview.series.DataPoint
+import com.jjoe64.graphview.series.LineGraphSeries
+import androidx.compose.foundation.layout.Spacer
 
 @RequiresApi(Build.VERSION_CODES.R)
 class MainActivity : ComponentActivity() {
@@ -688,6 +697,37 @@ fun AnalyzeWindow(modifier: Modifier,
     var positionErrorCDF by remember { mutableStateOf(emptyList<FloatArray>()) }
     var errorFromConfidence by remember { mutableStateOf(1f) }
     // TODO: Graph to display position error CDF
+
+    Column(modifier = modifier.padding(16.dp)) {
+
+        AndroidView(
+            factory = { context ->
+                GraphView(context).apply {
+                    gridLabelRenderer.horizontalAxisTitle = "Positionsfehler (m)"
+                    gridLabelRenderer.verticalAxisTitle = "CDF"
+                }
+            },
+            update = { graph ->
+                graph.removeAllSeries()
+
+                if (positionErrorCDF.isNotEmpty()) {
+                    val series = LineGraphSeries(
+                        positionErrorCDF.map {
+                            DataPoint(it[0].toDouble(), it[1].toDouble())
+                        }.toTypedArray()
+                    )
+                    graph.addSeries(series)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+
     Button(onClick = {
         positionErrorCDF = errorModel.positionErrorCDF()
     }) {

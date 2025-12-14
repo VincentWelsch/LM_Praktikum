@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.praktikum2"
-        minSdk = 24
+        minSdk = 23
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.androidx.preference.ktx)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -61,4 +62,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     implementation("org.osmdroid:osmdroid-android:6.1.20")
+    implementation("com.jjoe64:graphview:4.2.2")
 }
