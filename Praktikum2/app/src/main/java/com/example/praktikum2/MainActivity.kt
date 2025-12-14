@@ -717,7 +717,6 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
     var errorFromConfidence by remember { mutableFloatStateOf(0f) }
     var positionErrorCDF by remember { mutableStateOf(emptyList<FloatArray>()) }
     var errorFromConfidenceMeters by remember { mutableFloatStateOf(0f) }
-    // TODO: Graph to display position error CDF
 
     Column(modifier = modifier.padding(16.dp)) {
 
@@ -738,9 +737,8 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
                     viewport.setMaxY(1.0)
                 }
             },
-
             update = { graph ->
-               // graph.removeAllSeries()
+                graph.removeAllSeries()
 
                 if (positionErrorCDF.isNotEmpty()) {
                     val series = LineGraphSeries(
@@ -750,20 +748,6 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
                     )
                     graph.addSeries(series)
                 }
-
-                /*val series = LineGraphSeries(
-                    arrayOf(
-                        DataPoint(0.0, 0.0),
-                        DataPoint(1.0, 1.0),
-                        DataPoint(2.0, 4.0),
-                        DataPoint(3.0, 9.0),
-                        DataPoint(4.0, 16.0),
-                        DataPoint(5.0, 25.0)
-                    )
-                )
-                graph.addSeries(series)*/
-
-
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -771,85 +755,55 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
         )
 
         Spacer(modifier = Modifier.height(16.dp))
-    }
 
+        // Daten berechnen und anzeigen
+        Button(onClick = {
+            positionErrorCDF = errorModel.positionErrorCDF()
+        }) {
+            Text("Calculate CDF")
+        }
 
-    Button(onClick = {
-        positionErrorCDF = errorModel.positionErrorCDF()
-    }) {
-        Text("Calculate CDF")
-    }
-    Column(modifier) {
+        Spacer(modifier = Modifier.height(8.dp))
+
         Text("Confidence level: $confidence")
-        Text("Error from confidence level: $errorFromConfidence")
-        Slider( // Set confidence
+        Text("Error from confidence level: $errorFromConfidence m")
+
+        Slider(
             value = confidence,
-            steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
+            steps = 19,
             onValueChange = { confidence = it },
-            onValueChangeFinished = {  },
+            onValueChangeFinished = {
+                // Optional: direkt hier berechnen
+                // errorFromConfidence = errorModel.getPositionErrorFromConfidence(confidence)
+            },
             valueRange = 0f..1f
         )
-        Button(onClick = { // Calculate errorFromConfidence
+
+        Button(onClick = {
             try {
                 errorFromConfidence = errorModel.getPositionErrorFromConfidence(confidence)
             } catch (e: Exception) {
                 Log.e("PositionError", "Failed to calculate position error: ${e.message}")
                 actionFailedToast(ctx)
             }
-        }) {Text("Calculate error from confidence")}
-    Column {
-        Button(onClick = {
-            positionErrorCDF = errorModel.positionErrorCDF()
         }) {
-            Text("Calculate CDF")
+            Text("Calculate error from confidence")
         }
-        Column(modifier) {
-            Text("Confidence level: $confidence")
-            Text("Error from confidence level: $errorFromConfidenceMeters m")
-            Slider( // Set confidence
-                value = confidence,
-                steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
-                onValueChange = { confidence = it },
-                onValueChangeFinished = { },
-                valueRange = 0f..1f
-            )
-            Button(onClick = { // Calculate errorFromConfidence
-                try {
-                    errorFromConfidenceMeters = errorModel.errorToMeters(
-                        errorModel.getPositionErrorFromConfidence(confidence))
-                } catch (e: Exception) {
-                    Log.e("PositionError", "Failed to calculate position error: ${e.message}")
-                    actionFailedToast(ctx)
-                }
-            }) { Text("Calculate error from confidence") }
-        }
-    Column {
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text("Error from confidence level: $errorFromConfidenceMeters m")
         Button(onClick = {
-            positionErrorCDF = errorModel.positionErrorCDF()
+            try {
+                errorFromConfidenceMeters = errorModel.errorToMeters(
+                    errorModel.getPositionErrorFromConfidence(confidence)
+                )
+            } catch (e: Exception) {
+                Log.e("PositionError", "Failed to calculate position error: ${e.message}")
+                actionFailedToast(ctx)
+            }
         }) {
-            Text("Calculate CDF")
-        }
-        Column(modifier) {
-            Text("Confidence level: $confidence")
-            Text("Error from confidence level: $errorFromConfidenceMeters m")
-            Slider( // Set confidence
-                value = confidence,
-                steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
-                onValueChange = { confidence = it },
-                onValueChangeFinished = { },
-                valueRange = 0f..1f
-            )
-            Button(onClick = { // Calculate errorFromConfidence
-                try {
-                    errorFromConfidenceMeters = errorModel.errorToMeters(
-                        errorModel.getPositionErrorFromConfidence(confidence))
-                } catch (e: Exception) {
-                    Log.e("PositionError", "Failed to calculate position error: ${e.message}")
-                    actionFailedToast(ctx)
-                }
-            }) { Text("Calculate error from confidence") }
+            Text("Calculate error (meters)")
         }
     }
-}
-}
 }
