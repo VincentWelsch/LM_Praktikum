@@ -7,7 +7,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
@@ -725,14 +724,14 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
                 val polyline = Polyline()
                 val geoPoints = convertFloatToGeoPoint(routePoints) // Umwandlung in GeoPoints
                 polyline.setPoints(geoPoints)
-                polyline.color = Color.RED // Farbe der Linie
+                polyline.color = android.graphics.Color.RED // Farbe der Linie
                 polyline.width = 8.0f // Dicke der Linie
 
                 // 4. Die Polyline zur Karte hinzufügen
                 mapView.overlays.add(polyline)
 
                 // Marker hinzufügen
-                val circle = circleDrawable(mapView.context, Color.RED, 6f)
+                val circle = circleDrawable(mapView.context, android.graphics.Color.RED, 6f)
                 geoPoints.forEach { point ->
                     val marker = Marker(mapView).apply {
                         position = point
@@ -751,7 +750,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
                 val geoPoints = convertMeasurementToGeoPoint(measurementPoints)
 
                 // Marker hinzufügen
-                val circle = circleDrawable(mapView.context, Color.BLUE, 5f)
+                val circle = circleDrawable(mapView.context, android.graphics.Color.BLUE, 5f)
                 geoPoints.forEach { point ->
                     val marker = Marker(mapView).apply {
                         position = point
@@ -767,7 +766,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
                 val geoPoints = convertMeasurementToGeoPoint(waypointPoints)
 
                 // Marker hinzufügen
-                val circle = circleDrawable(mapView.context, Color.GREEN, 5f)
+                val circle = circleDrawable(mapView.context, android.graphics.Color.GREEN, 5f)
                 geoPoints.forEach { point ->
                     val marker = Marker(mapView).apply {
                         position = point
