@@ -111,4 +111,8 @@ class PositionErrorViewModel(private val collectionModel: CollectionViewModel): 
         }
         return cdf.last()[0] // Impossible, but IDE complains without it
     }
+
+    fun errorToMeters(error: Float): Float {
+        return error * 111000f
+    }
 }

@@ -274,8 +274,8 @@ fun noTitleToast(context: Context) {
     Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
 }
 
-fun addedWaypointToast(context: Context, longitude: Float, latitude: Float) {
-    val toastTest = "Added waypoint at $latitude, $longitude"
+fun addedWaypointToast(context: Context) {
+    val toastTest = "Added waypoint"
     Toast.makeText(context, toastTest, Toast.LENGTH_SHORT).show()
 }
 
@@ -293,6 +293,7 @@ fun addedGroundTruthToast(context: Context, gc: Int) {
 @Composable
 fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
     var title by remember { mutableStateOf("Run1") }
+    var jsonInput by remember { mutableStateOf("") }
     val ctx = LocalContext.current
     /* Layout (fill width):
          TextField
@@ -344,6 +345,18 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
                         collectionModel.getWaypointsCount())
                 }
             }) { Text("Load") }
+        }
+        Column {
+            TextField(value = jsonInput, label = { Text("JSON") },
+                onValueChange = { value -> jsonInput = value })
+            Button(onClick = {
+                collectionModel.loadCollectionFromJson(jsonInput)
+                sleep(500)
+                foundMeasurementsToast(
+                    ctx,
+                    collectionModel.getMeasurementsCount(),
+                    collectionModel.getWaypointsCount())
+            }) { Text("Load from string") }
         }
     }
 }
@@ -458,7 +471,7 @@ fun SensorConfig(
     fusedLocationProviderClient: FusedLocationProviderClient,
     collectionModel: CollectionViewModel) {
     // gps, network, or fused
-    var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
+    var currentMethod: String by remember { mutableStateOf("") }
     // for gps and network
     var positionMinTimeMs: Int by remember { mutableIntStateOf(1000) }
     var positionDistanceM: Float by remember { mutableFloatStateOf(1f) }
@@ -582,7 +595,7 @@ fun SensorConfig(
         Button(enabled = takeNew, onClick = {
             if (!takeNew) return@Button
             collectionModel.addWaypoint(0f,0f) // Dummy values to prevent locking
-            addedWaypointToast(ctx, 0f,0f)
+            addedWaypointToast(ctx)
             /*if (currentMethod != "fused") {
                 // Request single location for "gps" or "network"
                 @SuppressLint("MissingPermission")
@@ -686,30 +699,33 @@ fun AnalyzeWindow(modifier: Modifier,
     val ctx = LocalContext.current
     var confidence by remember { mutableStateOf(0.5f) }
     var positionErrorCDF by remember { mutableStateOf(emptyList<FloatArray>()) }
-    var errorFromConfidence by remember { mutableStateOf(1f) }
+    var errorFromConfidenceMeters by remember { mutableStateOf(0f) }
     // TODO: Graph to display position error CDF
-    Button(onClick = {
-        positionErrorCDF = errorModel.positionErrorCDF()
-    }) {
-        Text("Calculate CDF")
-    }
-    Column(modifier) {
-        Text("Confidence level: $confidence")
-        Text("Error from confidence level: $errorFromConfidence")
-        Slider( // Set confidence
-            value = confidence,
-            steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
-            onValueChange = { confidence = it },
-            onValueChangeFinished = {  },
-            valueRange = 0f..1f
-        )
-        Button(onClick = { // Calculate errorFromConfidence
-            try {
-                errorFromConfidence = errorModel.getPositionErrorFromConfidence(confidence)
-            } catch (e: Exception) {
-                Log.e("PositionError", "Failed to calculate position error: ${e.message}")
-                actionFailedToast(ctx)
-            }
-        }) {Text("Calculate error from confidence")}
+    Column {
+        Button(onClick = {
+            positionErrorCDF = errorModel.positionErrorCDF()
+        }) {
+            Text("Calculate CDF")
+        }
+        Column(modifier) {
+            Text("Confidence level: $confidence")
+            Text("Error from confidence level: $errorFromConfidenceMeters m")
+            Slider( // Set confidence
+                value = confidence,
+                steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
+                onValueChange = { confidence = it },
+                onValueChangeFinished = { },
+                valueRange = 0f..1f
+            )
+            Button(onClick = { // Calculate errorFromConfidence
+                try {
+                    errorFromConfidenceMeters = errorModel.errorToMeters(
+                        errorModel.getPositionErrorFromConfidence(confidence))
+                } catch (e: Exception) {
+                    Log.e("PositionError", "Failed to calculate position error: ${e.message}")
+                    actionFailedToast(ctx)
+                }
+            }) { Text("Calculate error from confidence") }
+        }
     }
 }
