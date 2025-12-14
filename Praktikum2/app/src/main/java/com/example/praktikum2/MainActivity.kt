@@ -6,6 +6,12 @@ import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.ColorFilter
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
@@ -64,8 +70,11 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.preference.PreferenceManager
 import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.lang.Thread.sleep
 
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -278,6 +287,14 @@ fun convertGeoPointToFloat(list: List<GeoPoint>): List<FloatArray> {
         floatList.add(floatArrayOf(point.latitude.toFloat(), point.longitude.toFloat()))
     }
     return floatList
+}
+
+fun convertMeasurementToGeoPoint(list: List<Measurement>): List<GeoPoint> {
+    val geoPointList = mutableListOf<GeoPoint>()
+    for (point in list) {
+        geoPointList.add(GeoPoint(point.latitude.toDouble(), point.longitude.toDouble()))
+    }
+    return geoPointList
 }
 
 // Visual feedback
@@ -667,12 +684,26 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
     // Holt die Ground-Truth-Route aus dem ViewModel
     val routePoints = collectionModel.getGroundTruth()
 
+//    val mockMeasurements = listOf(
+//        Measurement(longitude = 7.2605796f, latitude = 51.446224f, time = 1765459251247),
+//        Measurement(longitude = 7.2603908f, latitude = 51.444588f, time = 1765459483248),
+//        Measurement(longitude = 7.261326f, latitude = 51.443573f, time = 1765459594271)
+//    )
+    val measurementPoints = collectionModel.getMeasurements()
+
+//    val mockWaypoints = listOf(
+//        Measurement(longitude = 7.2605796f, latitude = 51.445225f, time = 1765459251247),
+//        Measurement(longitude = 7.2603908f, latitude = 51.44359f, time = 1765459483248),
+//        Measurement(longitude = 7.261326f, latitude = 51.442574f, time = 1765459594271)
+//    )
+    val waypointPoints = collectionModel.getWaypoints()
+
     // AndroidView wird verwendet, um eine klassische Android-View (MapView) in Compose zu nutzen
     AndroidView(
         modifier = modifier.fillMaxSize().clip(RectangleShape),
         factory = {
             MapView(it).apply {
-                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                setTileSource(TileSourceFactory.MAPNIK)
                 controller.setZoom(15.0)
                 setMultiTouchControls(true)
                 controller.setCenter(
@@ -691,17 +722,60 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
 
             if (routePoints.isNotEmpty()) {
                 // 3. Eine Polyline (Linie) aus den Routenpunkten erstellen
-                val polyline = org.osmdroid.views.overlay.Polyline()
+                val polyline = Polyline()
                 val geoPoints = convertFloatToGeoPoint(routePoints) // Umwandlung in GeoPoints
                 polyline.setPoints(geoPoints)
-                polyline.color = android.graphics.Color.RED // Farbe der Linie
+                polyline.color = Color.RED // Farbe der Linie
                 polyline.width = 8.0f // Dicke der Linie
 
                 // 4. Die Polyline zur Karte hinzufügen
                 mapView.overlays.add(polyline)
 
+                // Marker hinzufügen
+                val circle = circleDrawable(mapView.context, Color.RED, 6f)
+                geoPoints.forEach { point ->
+                    val marker = Marker(mapView).apply {
+                        position = point
+                        icon = circle
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    }
+                    mapView.overlays.add(marker)
+                }
+
                 // 5. Die Karte auf den Startpunkt der Route zentrieren
                 mapView.controller.setCenter(geoPoints.first())
+            }
+
+            // Measurements darstellen
+            if (measurementPoints.isNotEmpty()) {
+                val geoPoints = convertMeasurementToGeoPoint(measurementPoints)
+
+                // Marker hinzufügen
+                val circle = circleDrawable(mapView.context, Color.BLUE, 5f)
+                geoPoints.forEach { point ->
+                    val marker = Marker(mapView).apply {
+                        position = point
+                        icon = circle
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    }
+                    mapView.overlays.add(marker)
+                }
+            }
+
+            // Waypoints darstellen
+            if (waypointPoints.isNotEmpty()) {
+                val geoPoints = convertMeasurementToGeoPoint(waypointPoints)
+
+                // Marker hinzufügen
+                val circle = circleDrawable(mapView.context, Color.GREEN, 5f)
+                geoPoints.forEach { point ->
+                    val marker = Marker(mapView).apply {
+                        position = point
+                        icon = circle
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    }
+                    mapView.overlays.add(marker)
+                }
             }
 
             // Die Karte neu zeichnen, um die Änderungen anzuzeigen
@@ -807,3 +881,24 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
         }
     }
 }
+
+fun circleDrawable(context: Context, color: Int, dp: Float = 8f): Drawable =
+    object : Drawable() {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color }
+        private val density = context.resources.displayMetrics.density
+        private val radius = dp * density / 2f
+
+        override fun draw(canvas: Canvas) {
+            val cx = bounds.centerX().toFloat()
+            val cy = bounds.centerY().toFloat()
+            canvas.drawCircle(cx, cy, radius, paint)
+        }
+
+        override fun setAlpha(a: Int) = Unit.also { paint.alpha = a }
+        override fun setColorFilter(cf: ColorFilter?) =
+            Unit.also { paint.colorFilter = cf }
+
+        override fun getOpacity() = PixelFormat.TRANSLUCENT
+        override fun getIntrinsicWidth() = (dp * density).toInt()
+        override fun getIntrinsicHeight() = (dp * density).toInt()
+    }
