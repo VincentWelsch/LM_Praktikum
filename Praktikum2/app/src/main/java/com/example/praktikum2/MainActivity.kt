@@ -83,6 +83,8 @@ import com.jjoe64.graphview.GraphView
 import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.magnifier
+import androidx.compose.ui.modifier.modifierLocalConsumer
 
 @RequiresApi(Build.VERSION_CODES.R)
 class MainActivity : ComponentActivity() {
@@ -223,10 +225,11 @@ fun Menu(modifier: Modifier,
     )
     val ctx: Context = LocalContext.current
 
-    Column(modifier = modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center) {
-        Row { // Ground truth selection (), fill width at top of screen
+    Column(modifier = modifier.fillMaxSize().padding(16.dp),
+        //horizontalAlignment = Alignment.CenterHorizontally,
+        //verticalArrangement = Arrangement.Center
+    ) {
+        Row (modifier = Modifier.fillMaxWidth()){ // Ground truth selection (), fill width at top of screen
             Button( // Button for selecting route 1
                 onClick = {
                     if (route1.isNotEmpty()) {
@@ -235,7 +238,8 @@ fun Menu(modifier: Modifier,
                         collectionModel.setGroundTruth(emptyList<FloatArray>().toMutableList())
                     }
                     addedGroundTruthToast(ctx, collectionModel.getGroundTruth().size)
-            }) { Text("Route 1 - HSBO") }
+                }, modifier = Modifier.weight(1f)
+            ) { Text("Route 1 - HSBO") }
             Button( // Button for selecting route 2
                 onClick = {
                     if (route2.isNotEmpty()) {
@@ -244,12 +248,13 @@ fun Menu(modifier: Modifier,
                         collectionModel.setGroundTruth(emptyList<FloatArray>().toMutableList())
                     }
                     addedGroundTruthToast(ctx, collectionModel.getGroundTruth().size)
-            }) { Text("Route 2 - RUB") }
+                }, modifier = Modifier.padding(start = 5.dp).weight(1f)
+            ) { Text("Route 2 - RUB") }
         }
-        Row { // Window selection, fill width below ground truth selection
-            Button(onClick = { window = 0 }) { Text("Record") }
-            Button(onClick = { window = 1 }) { Text("Display") }
-            Button(onClick = { window = 2 }) { Text("Analyze") }
+        Row (modifier = Modifier.padding(bottom = 5.dp)){ // Window selection, fill width below ground truth selection
+            Button(onClick = { window = 0 }, modifier = Modifier.weight(1f)) { Text("Record") }
+            Button(onClick = { window = 1 }, modifier = Modifier.padding(start = 5.dp).weight(1f)) { Text("Display") }
+            Button(onClick = { window = 2 }, modifier = Modifier.padding(start = 5.dp).weight(1f)) { Text("Analyze") }
         }
         Row { // Window content, remaining space
             when (window) {
@@ -334,8 +339,8 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
         Clear Load */
     Column(modifier) {
         // Input run or file name
-        TextField(value = title, onValueChange = { value -> title = value }, label = { Text("Title") })
-        Row { // First row: Check and Store
+        TextField(value = title, onValueChange = { value -> title = value }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+        Row (modifier = Modifier.padding(top = 5.dp)){ // First row: Check and Store
             // Check for data in collectionModel
             Button(onClick = {
                 foundMeasurementsToast(
@@ -343,7 +348,7 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
                     collectionModel.getMeasurementsCount(),
                     collectionModel.getWaypointsCount()
                 )
-            }) { Text("Check") }
+            }, modifier = Modifier.weight(1f)) { Text("Check") }
             // Store data in "$title.json"
             Button(onClick = {
                 if (title.isEmpty()) {
@@ -355,16 +360,16 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
                         collectionModel.getMeasurementsCount(),
                         collectionModel.getWaypointsCount())
                 }
-            }) { Text("Store") }
+            }, modifier = Modifier.padding(start = 5.dp).weight(1f)) { Text("Store") }
         }
-        Row { // Second row: Clear and Load
+        Row (modifier = Modifier.padding(bottom = 25.dp)){ // Second row: Clear and Load
             // Clear data from collectionModel
             Button(onClick = {
                 val mwc: Array<Int> = collectionModel.clearCollection()
                 if (mwc.size > 1) {
                     foundMeasurementsToast(ctx, mwc[0], mwc[1])
                 }
-            }) { Text("Clear") }
+            }, modifier = Modifier.weight(1f)) { Text("Clear") }
             // Load data from "$title.json"
             Button(onClick = {
                 if (title.isEmpty()) {
@@ -377,11 +382,11 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
                         collectionModel.getMeasurementsCount(),
                         collectionModel.getWaypointsCount())
                 }
-            }) { Text("Load") }
+            }, modifier = Modifier.padding(start = 5.dp).weight(1f)) { Text("Load") }
         }
         Column {
             TextField(value = jsonInput, label = { Text("JSON") },
-                onValueChange = { value -> jsonInput = value })
+                onValueChange = { value -> jsonInput = value }, modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 collectionModel.loadCollectionFromJson(jsonInput)
                 sleep(500)
@@ -389,7 +394,7 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
                     ctx,
                     collectionModel.getMeasurementsCount(),
                     collectionModel.getWaypointsCount())
-            }) { Text("Load from string") }
+            }, modifier = Modifier.padding(top = 5.dp)) { Text("Load from string") }
         }
     }
 }
@@ -412,7 +417,7 @@ fun PositionControl(
     // https://developer.android.com/develop/ui/compose/components/radio-button?hl=de
     // Radio Buttons to choose method for determining position
     Column(modifier) { // All
-        Column(modifier.selectableGroup()) { // Method
+        Column(modifier.selectableGroup().padding(all = 5.dp)) { // Method
             listOf(
                 LocationManager.GPS_PROVIDER,
                 // LocationManager.NETWORK_PROVIDER, // temporarily disabled for Praktikum2
@@ -432,7 +437,7 @@ fun PositionControl(
                             }
                         },
                         role = Role.RadioButton
-                    )
+                    ).padding(all = 3.dp)
                 ) {
                     RadioButton(
                         selected = (method == currentMethod),
@@ -665,7 +670,9 @@ fun SensorConfig(
                 }
             }*/
         }) { Text("Waypoint reached") }
-        Row {
+        Row (modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
             // Toggle if new data can be added to collectionModel
             Text("Allow new incoming data")
             Switch(checked = takeNew,
