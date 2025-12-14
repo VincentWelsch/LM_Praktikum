@@ -702,7 +702,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
                 mapView.overlays.add(polyline)
 
                 // Marker hinzufügen
-                val circle = circleDrawable(mapView.context, Color.RED, 10f)
+                val circle = circleDrawable(mapView.context, Color.RED, 6f)
                 geoPoints.forEach { point ->
                     val marker = Marker(mapView).apply {
                         position = point
@@ -721,7 +721,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
                 val geoPoints = convertMeasurementToGeoPoint(measurementPoints)
 
                 // Marker hinzufügen
-                val circle = circleDrawable(mapView.context, Color.BLUE, 10f)
+                val circle = circleDrawable(mapView.context, Color.BLUE, 5f)
                 geoPoints.forEach { point ->
                     val marker = Marker(mapView).apply {
                         position = point
@@ -737,7 +737,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
                 val geoPoints = convertMeasurementToGeoPoint(waypointPoints)
 
                 // Marker hinzufügen
-                val circle = circleDrawable(mapView.context, Color.GREEN, 10f)
+                val circle = circleDrawable(mapView.context, Color.GREEN, 5f)
                 geoPoints.forEach { point ->
                     val marker = Marker(mapView).apply {
                         position = point
