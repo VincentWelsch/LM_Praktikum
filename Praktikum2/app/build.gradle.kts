@@ -53,7 +53,6 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.androidx.preference.ktx)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -713,6 +713,7 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
 fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     var confidence by remember { mutableFloatStateOf(0.5f) }
+    var errorFromConfidence by remember { mutableFloatStateOf(0f) }
     var positionErrorCDF by remember { mutableStateOf(emptyList<FloatArray>()) }
     var errorFromConfidenceMeters by remember { mutableFloatStateOf(0f) }
     // TODO: Graph to display position error CDF
@@ -722,12 +723,23 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
         AndroidView(
             factory = { context ->
                 GraphView(context).apply {
-                    gridLabelRenderer.horizontalAxisTitle = "Positionsfehler (m)"
+                    gridLabelRenderer.horizontalAxisTitle = "Positionsfehlern (m)"
                     gridLabelRenderer.verticalAxisTitle = "CDF"
+
+                    // X-Achse von 0.1 bis 1.0
+                    viewport.isXAxisBoundsManual = true
+                    viewport.setMinX(0.1)
+                    viewport.setMaxX(1.0)
+
+                    // Y-Achse von 0 bis 1
+                    viewport.isYAxisBoundsManual = true
+                    viewport.setMinY(0.0)
+                    viewport.setMaxY(1.0)
                 }
             },
+
             update = { graph ->
-                graph.removeAllSeries()
+               // graph.removeAllSeries()
 
                 if (positionErrorCDF.isNotEmpty()) {
                     val series = LineGraphSeries(
@@ -737,6 +749,20 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
                     )
                     graph.addSeries(series)
                 }
+
+                /*val series = LineGraphSeries(
+                    arrayOf(
+                        DataPoint(0.0, 0.0),
+                        DataPoint(1.0, 1.0),
+                        DataPoint(2.0, 4.0),
+                        DataPoint(3.0, 9.0),
+                        DataPoint(4.0, 16.0),
+                        DataPoint(5.0, 25.0)
+                    )
+                )
+                graph.addSeries(series)*/
+
+
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -797,4 +823,5 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
             }) { Text("Calculate error from confidence") }
         }
     }
+}
 }
