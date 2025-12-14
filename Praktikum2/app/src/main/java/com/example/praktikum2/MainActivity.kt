@@ -380,6 +380,7 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
 
 @Composable
 fun PositionControl(
+    modifier: Modifier = Modifier,
     currentMethod: String,
     changePositionMethod: (String) -> Unit,
     onValueChangeFinished: () -> Unit,
@@ -394,8 +395,8 @@ fun PositionControl(
 ) {
     // https://developer.android.com/develop/ui/compose/components/radio-button?hl=de
     // Radio Buttons to choose method for determining position
-    Column() { // All
-        Column(Modifier.selectableGroup()) { // Method
+    Column(modifier) { // All
+        Column(modifier.selectableGroup()) { // Method
             listOf(
                 LocationManager.GPS_PROVIDER,
                 // LocationManager.NETWORK_PROVIDER, // temporarily disabled for Praktikum2
@@ -822,6 +823,33 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
                 }
             }) { Text("Calculate error from confidence") }
         }
+    Column {
+        Button(onClick = {
+            positionErrorCDF = errorModel.positionErrorCDF()
+        }) {
+            Text("Calculate CDF")
+        }
+        Column(modifier) {
+            Text("Confidence level: $confidence")
+            Text("Error from confidence level: $errorFromConfidenceMeters m")
+            Slider( // Set confidence
+                value = confidence,
+                steps = 19, // 0 -> 19 steps (each +0.05 increment) -> 1
+                onValueChange = { confidence = it },
+                onValueChangeFinished = { },
+                valueRange = 0f..1f
+            )
+            Button(onClick = { // Calculate errorFromConfidence
+                try {
+                    errorFromConfidenceMeters = errorModel.errorToMeters(
+                        errorModel.getPositionErrorFromConfidence(confidence))
+                } catch (e: Exception) {
+                    Log.e("PositionError", "Failed to calculate position error: ${e.message}")
+                    actionFailedToast(ctx)
+                }
+            }) { Text("Calculate error from confidence") }
+        }
     }
+}
 }
 }
