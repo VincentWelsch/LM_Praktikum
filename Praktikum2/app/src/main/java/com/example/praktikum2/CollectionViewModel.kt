@@ -199,6 +199,35 @@ class CollectionViewModel(
         }
     }
 
+    fun loadCollectionFromJson(runJson: String) {
+        if (runJson.isNotEmpty()) {
+            // Remember takesNew
+            val tookNew: Boolean = takesNew
+            takesNew = false
+            // Clear to avoid errors when clearing empty lists
+            groundTruth.clear()
+            measurements.clear()
+            waypoints.clear()
+            ioScope.launch {
+                try {
+                    // Read from file
+                    Log.d("LoadFromJson", "Content: $runJson")
+                    val run: Run = Json.decodeFromString<Run>(runJson)
+                    // Set local variables
+                    groundTruth.addAll(run.groundTruth)
+                    measurements.addAll(run.measurements)
+                    waypoints.addAll(run.waypoints)
+                    takesNew = tookNew
+                } catch (e: Exception) {
+                    Log.e("LoadFromJson", "Failed to load run from json: ${e.message}")
+                    takesNew = tookNew
+                }
+            }
+        } else {
+            Log.w("LoadFromJson", "Empty json provided")
+        }
+    }
+
     fun clearCollection(): Array<Int> {
         // Remember takesNew
         val tookNew: Boolean = takesNew
