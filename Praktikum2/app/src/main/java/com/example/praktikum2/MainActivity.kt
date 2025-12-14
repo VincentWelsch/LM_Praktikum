@@ -16,9 +16,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.selection.selectable
@@ -38,11 +41,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.praktikum2.ui.theme.Praktikum2Theme
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -152,7 +158,7 @@ fun Menu(modifier: Modifier,
          collectionModel: CollectionViewModel,
          errorModel: PositionErrorViewModel) {
     // Window selection: SensorConfig and RecordWindow (0) or DisplayWindow (1)
-    var window by remember { mutableStateOf(0)}
+    var window by remember { mutableIntStateOf(0)}
     // Predetermined routes
     val route1: List<FloatArray> = listOf(
         floatArrayOf(51.44785f, 7.27073f),
@@ -200,7 +206,9 @@ fun Menu(modifier: Modifier,
     )
     val ctx: Context = LocalContext.current
 
-    Column(modifier = modifier) {
+    Column(modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center) {
         Row { // Ground truth selection (), fill width at top of screen
             Button( // Button for selecting route 1
                 onClick = {
@@ -233,15 +241,15 @@ fun Menu(modifier: Modifier,
                         /* Record button needs currentMethod and is therefore placed at the bottom
                            of SensorConfig. Ideally, the button will reside center of screen for
                            easy access while walking the routes. */
-                        SensorConfig(modifier, locationManager, fusedLocationProviderClient, collectionModel)
-                        RecordWindow(modifier, collectionModel)
+                        SensorConfig(locationManager, fusedLocationProviderClient, collectionModel)
+                        RecordWindow(collectionModel)
                     }
                 }
                 1 -> {
-                    DisplayWindow(collectionModel, modifier)
+                    DisplayWindow(collectionModel)
                 }
                 2 -> {
-                    AnalyzeWindow(modifier, errorModel)
+                    AnalyzeWindow(errorModel)
                 }
             }
         }
@@ -291,7 +299,7 @@ fun addedGroundTruthToast(context: Context, gc: Int) {
 
 // First child composable of menu
 @Composable
-fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
+fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modifier) {
     var title by remember { mutableStateOf("Run1") }
     var jsonInput by remember { mutableStateOf("") }
     val ctx = LocalContext.current
@@ -363,7 +371,6 @@ fun RecordWindow(modifier: Modifier, collectionModel: CollectionViewModel) {
 
 @Composable
 fun PositionControl(
-    modifier: Modifier = Modifier,
     currentMethod: String,
     changePositionMethod: (String) -> Unit,
     onValueChangeFinished: () -> Unit,
@@ -378,8 +385,8 @@ fun PositionControl(
 ) {
     // https://developer.android.com/develop/ui/compose/components/radio-button?hl=de
     // Radio Buttons to choose method for determining position
-    Column(modifier) { // All
-        Column(modifier.selectableGroup()) { // Method
+    Column() { // All
+        Column(Modifier.selectableGroup()) { // Method
             listOf(
                 LocationManager.GPS_PROVIDER,
                 // LocationManager.NETWORK_PROVIDER, // temporarily disabled for Praktikum2
@@ -411,7 +418,7 @@ fun PositionControl(
         }
 
         if (currentMethod != "fused") { // Config for gps and network
-            /* Column(modifier) {
+            /* Column() {
                 Text(text = "Minimum time in ms between updates: $positionMinTimeMs")
                 Slider(
                     value = positionMinTimeMs.toFloat(),
@@ -430,7 +437,7 @@ fun PositionControl(
                 )
             } */ // temporarily disabled for Praktikum2
         } else { // Config for fused
-            /*Column(modifier) {
+            /*Column() {
                 Text(text = "Position priority: $positionPriority")
                 Slider(
                     value = positionPriority.toFloat(),
@@ -448,7 +455,7 @@ fun PositionControl(
                     valueRange = 0f..20000f
                 )
             }*/ // temporarily disabled for Praktikum2
-            Column(modifier) {
+            Column() {
                 Text(text = "Position priority: $positionPriority")
                 Slider(
                     value = positionPriority.toFloat(),
@@ -466,10 +473,10 @@ fun PositionControl(
 @RequiresApi(Build.VERSION_CODES.R)
 @Composable
 fun SensorConfig(
-    modifier: Modifier,
     locationManager: LocationManager,
     fusedLocationProviderClient: FusedLocationProviderClient,
-    collectionModel: CollectionViewModel) {
+    collectionModel: CollectionViewModel,
+    modifier: Modifier = Modifier) {
     // gps, network, or fused
     var currentMethod: String by remember { mutableStateOf("") }
     // for gps and network
@@ -694,12 +701,11 @@ fun DisplayWindow(collectionModel: CollectionViewModel, modifier: Modifier = Mod
 }
 
 @Composable
-fun AnalyzeWindow(modifier: Modifier,
-                  errorModel: PositionErrorViewModel) {
+fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
-    var confidence by remember { mutableStateOf(0.5f) }
+    var confidence by remember { mutableFloatStateOf(0.5f) }
     var positionErrorCDF by remember { mutableStateOf(emptyList<FloatArray>()) }
-    var errorFromConfidenceMeters by remember { mutableStateOf(0f) }
+    var errorFromConfidenceMeters by remember { mutableFloatStateOf(0f) }
     // TODO: Graph to display position error CDF
     Column {
         Button(onClick = {
