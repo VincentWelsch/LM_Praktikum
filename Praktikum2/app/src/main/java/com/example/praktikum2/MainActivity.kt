@@ -84,6 +84,8 @@ import com.jjoe64.graphview.series.DataPoint
 import com.jjoe64.graphview.series.LineGraphSeries
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.magnifier
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.modifier.modifierLocalConsumer
 
 @RequiresApi(Build.VERSION_CODES.R)
@@ -333,6 +335,7 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
     var title by remember { mutableStateOf("Run1") }
     var jsonInput by remember { mutableStateOf("") }
     val ctx = LocalContext.current
+    val scrollState = rememberScrollState()
     /* Layout (fill width):
          TextField
         Check Store
@@ -385,8 +388,13 @@ fun RecordWindow(collectionModel: CollectionViewModel, modifier: Modifier = Modi
             }, modifier = Modifier.padding(start = 5.dp).weight(1f)) { Text("Load") }
         }
         Column {
-            TextField(value = jsonInput, label = { Text("JSON") },
-                onValueChange = { value -> jsonInput = value }, modifier = Modifier.fillMaxWidth())
+            TextField(value = jsonInput,
+                modifier = Modifier
+                    .height(100.dp)
+                    .verticalScroll(scrollState)
+                    .fillMaxWidth(),
+                label = { Text("JSON") },
+                onValueChange = { value -> jsonInput = value })
             Button(onClick = {
                 collectionModel.loadCollectionFromJson(jsonInput)
                 sleep(500)
@@ -803,13 +811,13 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
         AndroidView(
             factory = { context ->
                 GraphView(context).apply {
-                    gridLabelRenderer.horizontalAxisTitle = "Positionsfehlern (m)"
+                    gridLabelRenderer.horizontalAxisTitle = "Position error (m)"
                     gridLabelRenderer.verticalAxisTitle = "CDF"
 
                     // X-Achse von 0.1 bis 1.0
                     viewport.isXAxisBoundsManual = true
-                    viewport.setMinX(0.1)
-                    viewport.setMaxX(1.0)
+                    viewport.setMinX(0.0)
+                    viewport.setMaxX(140.0)
 
                     // Y-Achse von 0 bis 1
                     viewport.isYAxisBoundsManual = true
@@ -823,7 +831,8 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
                 if (positionErrorCDF.isNotEmpty()) {
                     val series = LineGraphSeries(
                         positionErrorCDF.map {
-                            DataPoint(it[0].toDouble(), it[1].toDouble())
+                            DataPoint(errorModel.errorToMeters(it[0]).toDouble(),
+                                it[1].toDouble())
                         }.toTypedArray()
                     )
                     graph.addSeries(series)
@@ -846,7 +855,6 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
         Spacer(modifier = Modifier.height(8.dp))
 
         Text("Confidence level: $confidence")
-        Text("Error from confidence level: $errorFromConfidence m")
 
         Slider(
             value = confidence,
@@ -858,17 +866,6 @@ fun AnalyzeWindow(errorModel: PositionErrorViewModel, modifier: Modifier = Modif
             },
             valueRange = 0f..1f
         )
-
-        Button(onClick = {
-            try {
-                errorFromConfidence = errorModel.getPositionErrorFromConfidence(confidence)
-            } catch (e: Exception) {
-                Log.e("PositionError", "Failed to calculate position error: ${e.message}")
-                actionFailedToast(ctx)
-            }
-        }) {
-            Text("Calculate error from confidence")
-        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
