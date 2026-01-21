@@ -1,5 +1,6 @@
 package com.example.praktikum3
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -17,6 +18,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
@@ -79,7 +81,8 @@ class MainActivity : ComponentActivity() {
                         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                             val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
                             val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-                            Menu(sensorManager, locationManager)
+                            Menu(modifier = Modifier.padding(innerPadding),
+                                sensorManager, locationManager)
                         }
                     }
                 }
@@ -91,7 +94,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Menu(sensorManager: SensorManager, locationManager: LocationManager) {
+fun Menu(modifier: Modifier, sensorManager: SensorManager, locationManager: LocationManager) {
     val client = ClientViewModel()
     val ctx = LocalContext.current
 
@@ -193,6 +196,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         }
 
     }
+    @SuppressLint("MissingPermission")
     fun registerLocationListener(method: String) {
         try {
             when (method) {
@@ -243,6 +247,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         registerLocationListener(method)
         currentMethod = method
     }
+    @SuppressLint("MissingPermission")
     fun changeStrategy(strategy: ReportingStrategies) {
         try {
             when (strategy) {
@@ -322,7 +327,9 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 }
                 ReportingStrategies.MANAGED_MOVEMENT -> {
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
-                    // TODO
+                    /* TODO: Register accelerometer listener and call reportToServer() in its callback
+                       when acceleration exceeds accelThreshold
+                     */
                 }
             }
             currentStrategy = strategy
