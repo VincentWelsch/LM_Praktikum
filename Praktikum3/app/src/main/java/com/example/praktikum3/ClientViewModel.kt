@@ -25,21 +25,25 @@ class ClientViewModel {
             }
             ReportingStrategies.PERIODIC -> {
                 try {
-                    // TODO
+                    // TODO: Check conditions and (eventually) call send(fix, time, strategy)
                     reportCount += 1
                 } catch(e: Exception) {
                     Log.e("ReportToServerError", "Failed to report to server: ${e.message}")
                 }
             }
             ReportingStrategies.DISTANCE_BASED -> {
-                // TODO
+                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
             }
             ReportingStrategies.MANAGED_PERIODIC -> {
-                // TODO
+                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
             }
             ReportingStrategies.MANAGED_MOVEMENT -> {
-                // TODO
+                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
             }
         }
+    }
+
+    private fun send(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
+        // TODO: Communicate to server
     }
 }
