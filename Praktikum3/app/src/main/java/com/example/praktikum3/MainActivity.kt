@@ -14,9 +14,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,10 +38,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.praktikum3.ui.theme.Praktikum3Theme
 import kotlinx.coroutines.Dispatchers
@@ -95,7 +99,14 @@ fun Menu(sensorManager: SensorManager, locationManager: LocationManager) {
     val client = ClientViewModel()
     val ctx = LocalContext.current
 
-    Column {
+    Column (
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+
+    )
+    {
+
         SensorConfig(
             sensorManager = sensorManager,
             locationManager = locationManager,
@@ -346,13 +357,16 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     // Components
     Column {
         // Reporting strategy selection
-        Column(modifier = Modifier.selectableGroup()) {
-            Text(text = "Reporting strategy:")
+        Column(modifier = Modifier.selectableGroup(),
+            verticalArrangement = Arrangement.spacedBy(16.dp) // Abstand zwischen allen Items
+        ) {
+            Text(text = "Reporting strategy auswählen:")
             listOf(
-                ReportingStrategies.NONE, // task 1a)
-                ReportingStrategies.PERIODIC, // task 1b)
-                ReportingStrategies.MANAGED_PERIODIC, // task 1c)
-                ReportingStrategies.MANAGED_MOVEMENT, // task 1d)
+                ReportingStrategies.NONE, // wird gar nichts )
+                ReportingStrategies.PERIODIC, // task 1a)
+
+                ReportingStrategies.MANAGED_PERIODIC, // task 1b)
+                ReportingStrategies.MANAGED_MOVEMENT, // task 1c)
             ).forEach { strategy ->
                 Row(
                     Modifier.selectable(
