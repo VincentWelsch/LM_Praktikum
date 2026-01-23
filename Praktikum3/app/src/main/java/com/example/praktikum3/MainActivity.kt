@@ -1,5 +1,6 @@
 package com.example.praktikum3
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -16,9 +17,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
@@ -44,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.praktikum3.ui.theme.Praktikum3Theme
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +87,7 @@ class MainActivity : ComponentActivity() {
                         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                             val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
                             val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-                            Menu(sensorManager, locationManager)
+                            Menu(innerPadding, sensorManager, locationManager)
                         }
                     }
                 }
@@ -95,17 +99,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Menu(sensorManager: SensorManager, locationManager: LocationManager) {
+fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationManager: LocationManager) {
     val client = ClientViewModel()
     val ctx = LocalContext.current
 
     Column (
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.padding(innerPadding),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
-
-    )
-    {
+    ) {
 
         SensorConfig(
             sensorManager = sensorManager,
@@ -170,17 +172,15 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             }
         }
     }
-    val locationListener: LocationListener = remember {
-        LocationListener { location ->
-            client.reportToServer(
-                PositionFix(
-                    location.latitude.toFloat(),
-                    location.longitude.toFloat(),
-                    0f),
-                System.currentTimeMillis(),
-                currentStrategy // ClientViewModel checks if new report is needed
-            )
-        }
+    val locationListener: LocationListener = LocationListener { location ->
+        client.reportToServer(
+            PositionFix(
+                location.latitude.toFloat(),
+                location.longitude.toFloat(),
+                0f),
+            System.currentTimeMillis(),
+            currentStrategy // ClientViewModel checks if new report is needed
+        )
     }
 
     // Register/unregister Listeners
@@ -204,6 +204,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         }
 
     }
+    @Suppress("MissingPermission")
     fun registerLocationListener(method: String) {
         try {
             when (method) {
@@ -254,7 +255,12 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         registerLocationListener(method)
         currentMethod = method
     }
+    @Suppress("MissingPermission")
     fun changeStrategy(strategy: ReportingStrategies) {
+        if (currentMethod != LocationManager.GPS_PROVIDER) {
+            changePositionMethod(LocationManager.GPS_PROVIDER)
+            Log.w("StrategyChangeWarning", "Location method changed to GPS")
+        }
         try {
             when (strategy) {
                 ReportingStrategies.NONE -> {
@@ -274,23 +280,29 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     periodicJob = scope.launch(Dispatchers.Default) {
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
-                            locationManager.getCurrentLocation(
-                                currentMethod,
-                                null,
-                                ContextCompat.getMainExecutor(ctx),
-                                { location ->
-                                    if (location != null)
-                                        client.reportToServer(
-                                            PositionFix(
-                                                location.latitude.toFloat(),
-                                                location.longitude.toFloat(),
-                                                0f
-                                            ),
-                                            System.currentTimeMillis(),
-                                            ReportingStrategies.PERIODIC
-                                        )
-                                }
-                            )
+                            try {
+                                locationManager.getCurrentLocation(
+                                    currentMethod,
+                                    null,
+                                    ContextCompat.getMainExecutor(ctx),
+                                    { location ->
+                                        if (location != null) {
+                                            client.reportToServer(
+                                                PositionFix(
+                                                    location.latitude.toFloat(),
+                                                    location.longitude.toFloat(),
+                                                    0f
+                                                ),
+                                                System.currentTimeMillis(),
+                                                ReportingStrategies.PERIODIC
+                                            )
+                                            Log.d("ReportingStrategies", "$location")
+                                        }
+                                    }
+                                )
+                            } catch (e: Exception) {
+                                Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
+                            }
                             delay(jobDelay)
                         }
                     }
@@ -298,7 +310,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 ReportingStrategies.DISTANCE_BASED -> {
                     Log.d("ReportingStrategies", "Selected DISTANCE_BASED")
                     periodicJob?.cancel() // End job if already running
-                    changePositionMethod(LocationManager.GPS_PROVIDER)
+                    changePositionMethod(currentMethod)
                     // locationListener callback sends location fixes to client
                     // Client checks if new report is needed
                 }
@@ -307,32 +319,42 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     periodicJob?.cancel() // End job if already running
                     unregisterLocationListener(currentMethod)
                     periodicJob = scope.launch(Dispatchers.Default) {
-                        val timeToWait: Long = 1000 * (distanceThreshold / maxVelocity).toLong()
+                        var timeToWait: Long = 1000 * (distanceThreshold / maxVelocity).toLong()
+                        if (timeToWait < 1000)
+                            timeToWait = 1000
+                        // distanceThreshold must not be too low - else fixes are requested too frequently
+                        Log.d("ReportingStrategies", "timeToWait: $timeToWait")
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
-                            locationManager.getCurrentLocation(
-                                currentMethod,
-                                null,
-                                ContextCompat.getMainExecutor(ctx),
-                                { location ->
-                                    if (location != null)
-                                        client.reportToServer(
-                                            PositionFix(
-                                                location.latitude.toFloat(),
-                                                location.longitude.toFloat(),
-                                                0f
-                                            ),
-                                            System.currentTimeMillis(),
-                                            ReportingStrategies.MANAGED_PERIODIC
-                                        )
-                                }
-                            )
+                            try {
+                                locationManager.getCurrentLocation(
+                                    currentMethod,
+                                    null,
+                                    ContextCompat.getMainExecutor(ctx),
+                                    { location ->
+                                        if (location != null)
+                                            client.reportToServer(
+                                                PositionFix(
+                                                    location.latitude.toFloat(),
+                                                    location.longitude.toFloat(),
+                                                    0f
+                                                ),
+                                                System.currentTimeMillis(),
+                                                ReportingStrategies.MANAGED_PERIODIC
+                                            )
+                                    }
+                                )
+                            } catch (e: Exception) {
+                                Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
+                            }
                             delay(timeToWait)
                         }
                     }
                 }
                 ReportingStrategies.MANAGED_MOVEMENT -> {
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
+                    periodicJob?.cancel() // End job if already running
+                    unregisterLocationListener(currentMethod)
                     // TODO
                 }
             }
@@ -364,7 +386,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             listOf(
                 ReportingStrategies.NONE, // wird gar nichts )
                 ReportingStrategies.PERIODIC, // task 1a)
-
+                ReportingStrategies.DISTANCE_BASED, // task 1b)
                 ReportingStrategies.MANAGED_PERIODIC, // task 1b)
                 ReportingStrategies.MANAGED_MOVEMENT, // task 1c)
             ).forEach { strategy ->
@@ -421,7 +443,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     Row {
                         // distanceThreshold is shared across 1b), 1c) and 1d)
                         TextField(
-                            value = distanceText,
+                            value = distanceThreshold.toString(),
                             onValueChange = { distanceText = it },
                             label = { Text("Threshold (m as Float)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -442,7 +464,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         when (currentStrategy) {
                             ReportingStrategies.MANAGED_PERIODIC -> {
                                 TextField(
-                                    value = maxVelocityText,
+                                    value = maxVelocity.toString(),
                                     onValueChange = { maxVelocityText = it },
                                     label = { Text("Max velocity (m/s as Float)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -450,7 +472,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                 )
                                 Button(onClick = {
                                     val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
-                                    if (newMaxVelocity != null && newMaxVelocity >= 0f) {
+                                    if (newMaxVelocity != null && newMaxVelocity > 0f) {
                                         client.setDistanceThreshold(newMaxVelocity)
                                         maxVelocity = newMaxVelocity
                                         changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
@@ -462,7 +484,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                             }
                             ReportingStrategies.MANAGED_MOVEMENT -> {
                                 TextField(
-                                    value = accelThresholdText,
+                                    value = accelThreshold.toString(),
                                     onValueChange = { accelThresholdText = it },
                                     label = { Text("Acceleration threshold (m/s^2 as Double)") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -470,7 +492,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                 )
                                 Button(onClick = {
                                     val newAccelThreshold: Double? = accelThresholdText.toDoubleOrNull()
-                                    if (newAccelThreshold != null && newAccelThreshold >= 0.0) {
+                                    if (newAccelThreshold != null && newAccelThreshold > 0.0) {
                                         accelThreshold = newAccelThreshold
                                     } else {
                                         accelThresholdText = accelThreshold.toString()

@@ -5,7 +5,7 @@ import android.util.Log
 class ClientViewModel {
     private var fixCount: Int = 0
     private var reportCount: Int = 0
-    private var distanceThreshold: Float = 0f
+    private var distanceThreshold: Float = 10f
     fun getDistanceThreshold(): Float {
         return distanceThreshold
     }
