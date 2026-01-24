@@ -159,6 +159,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     // Listeners
     val accelListener = remember {
         object : SensorEventListener {
+            var acceleration: Double = 0.0;
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event != null) {
                     // Overall acceleration
@@ -173,6 +174,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             }
         }
     }
+
     val locationListener: LocationListener = LocationListener { location ->
         client.reportToServer(
             PositionFix(
@@ -356,12 +358,58 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
                     periodicJob?.cancel() // End job if already running
                     unregisterLocationListener(currentMethod)
-                    // TODO
+
                 }
                 ReportingStrategies.MOVEMENT_BASED -> {
                     Log.d("ReportingStrategies", "Selected MOVEMENT_BASED")
+                    // Jobs beenden, die gerade laufen
+                    periodicJob?.cancel()
+                    unregisterLocationListener(currentMethod)
 
+
+                    // Holen Sie sich den Sensor und registrieren Sie den Listener.
+                    val accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+                    sensorManager.registerListener(accelListener, accelSensor, accelDelay)
+
+                    periodicJob = scope.launch(Dispatchers.Default) {
+                        Log.d("ReportingStrategies", "Movement-based job started")
+                        while (true) {
+                            // 2. Prüfen, ob die Beschleunigung über dem Treshold liegt
+                            // Wir greifen auf die 'lastAcceleration' Eigenschaft des Listeners zu.
+                            if (accelListener.acceleration > accelThreshold) {
+                                Log.d("ReportingStrategies", "Movement detected! Acceleration: ${accelListener.acceleration}. Requesting location.")
+                                try {
+                                    // Diese getCurrentLocation-Anfrage wird nur ausgeführt,
+                                    // wenn die Bedingung oben erfüllt ist.
+                                    locationManager.getCurrentLocation(
+                                        currentMethod,
+                                        null,
+                                        ContextCompat.getMainExecutor(ctx),
+                                        { location ->
+                                            if (location != null) {
+                                                client.reportToServer(
+                                                    PositionFix(
+                                                        location.latitude.toFloat(),
+                                                        location.longitude.toFloat(),
+                                                        0f
+                                                    ),
+                                                    System.currentTimeMillis(),
+                                                    ReportingStrategies.MOVEMENT_BASED
+                                                )
+                                                Log.d("ReportingStrategies", "Location sent: $location")
+                                            }
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
+                                }
+                            }
+                            delay(jobDelay)
+                        }
+                    }
                 }
+
+
             }
             currentStrategy = strategy
             Log.d("StrategyChange", "Strategy changed to $strategy")
