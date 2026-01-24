@@ -356,12 +356,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 }
                 ReportingStrategies.MANAGED_MOVEMENT -> {
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
-                    periodicJob?.cancel() // End job if already running
-                    unregisterLocationListener(currentMethod)
-
-                }
-                ReportingStrategies.MOVEMENT_BASED -> {
-                    Log.d("ReportingStrategies", "Selected MOVEMENT_BASED")
                     // Jobs beenden, die gerade laufen
                     periodicJob?.cancel()
                     unregisterLocationListener(currentMethod)
@@ -394,7 +388,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                                         0f
                                                     ),
                                                     System.currentTimeMillis(),
-                                                    ReportingStrategies.MOVEMENT_BASED
+                                                    ReportingStrategies.MANAGED_MOVEMENT
                                                 )
                                                 Log.d("ReportingStrategies", "Location sent: $location")
                                             }
@@ -510,8 +504,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         }
                     }) { Text(text = "Set") }
                 }
-
-
                 ReportingStrategies.MANAGED_PERIODIC,
                 ReportingStrategies.MANAGED_MOVEMENT -> Column {
                     Row {
@@ -578,6 +570,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         } // inner when
                     }
                 }
+
                 else -> {}
             } // outer when
         } // Strategy-specific configuration
