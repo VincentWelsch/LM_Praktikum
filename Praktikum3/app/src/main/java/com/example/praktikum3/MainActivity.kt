@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
@@ -364,9 +365,9 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             listOf(
                 ReportingStrategies.NONE, // wird gar nichts )
                 ReportingStrategies.PERIODIC, // task 1a)
-
-                ReportingStrategies.MANAGED_PERIODIC, // task 1b)
-                ReportingStrategies.MANAGED_MOVEMENT, // task 1c)
+                ReportingStrategies.DISTANCE_BASED, // task 1b)
+                ReportingStrategies.MANAGED_PERIODIC, // task 1c)
+                ReportingStrategies.MANAGED_MOVEMENT, // task 1d)
             ).forEach { strategy ->
                 Row(
                     Modifier.selectable(
@@ -415,7 +416,25 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                             jobDelay = newJobDelay
                     }) { Text(text = "Set") }
                 }
-                ReportingStrategies.DISTANCE_BASED,
+                ReportingStrategies.DISTANCE_BASED -> {
+                    TextField(
+                        value = distanceText,
+                        onValueChange = { distanceText = it },
+                        label = { Text("distance in m)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.width(150.dp)
+                    )
+                    Button(onClick = {
+                        val newDistanceText: Float? = distanceText.toFloatOrNull()
+                        if (newDistanceText != null && newDistanceText >= 1f) {
+                            client.setDistanceThreshold(newDistanceText)
+                            // timeToWait in job is only calculated once to avoid unnecessary calculations
+                        }
+                    }) { Text(text = "Set") }
+                }
+
+
                 ReportingStrategies.MANAGED_PERIODIC,
                 ReportingStrategies.MANAGED_MOVEMENT -> Column {
                     Row {

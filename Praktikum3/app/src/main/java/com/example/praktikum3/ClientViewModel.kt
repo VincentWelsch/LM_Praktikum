@@ -1,11 +1,13 @@
 package com.example.praktikum3
 
+import android.location.Location
 import android.util.Log
 
 class ClientViewModel {
     private var fixCount: Int = 0
     private var reportCount: Int = 0
     private var distanceThreshold: Float = 0f
+    private var lastSentLocation: PositionFix? = null
     fun getDistanceThreshold(): Float {
         return distanceThreshold
     }
@@ -32,7 +34,24 @@ class ClientViewModel {
                 }
             }
             ReportingStrategies.DISTANCE_BASED -> {
-                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
+                val last = lastSentLocation
+
+                if (last == null) {
+                    // erster Fix → immer senden
+                    send(fix, time, strategy)
+                    lastSentLocation = fix
+                    return
+                }
+
+                // Distanz berechnen
+                val distance = calculateDistance(last, fix)
+
+                if (distance >= distanceThreshold) {
+                    send(fix, time, strategy)
+                    lastSentLocation = fix
+                }
+                else
+                    System.out.println("distance zwischen 2 GPS-FIX ist noch klein als Distanzschwelle")
             }
             ReportingStrategies.MANAGED_PERIODIC -> {
                 // TODO: Check conditions and (eventually) call send(fix, time, strategy)
@@ -41,6 +60,18 @@ class ClientViewModel {
                 // TODO: Check conditions and (eventually) call send(fix, time, strategy)
             }
         }
+    }
+
+    private fun calculateDistance(a: PositionFix, b: PositionFix): Float {
+        val locA = Location("").apply {
+            latitude = a.latitude.toDouble()
+            longitude = a.longitude.toDouble()
+        }
+        val locB = Location("").apply {
+            latitude = b.latitude.toDouble()
+            longitude = b.longitude.toDouble()
+        }
+        return locA.distanceTo(locB)
     }
 
     private fun send(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
