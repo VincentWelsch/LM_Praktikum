@@ -335,6 +335,10 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
                     // TODO
                 }
+                ReportingStrategies.MOVEMENT_BASED -> {
+                    Log.d("ReportingStrategies", "Selected MOVEMENT_BASED")
+
+                }
             }
             currentStrategy = strategy
             Log.d("StrategyChange", "Strategy changed to $strategy")
