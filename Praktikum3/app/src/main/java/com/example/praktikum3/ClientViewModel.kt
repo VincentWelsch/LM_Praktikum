@@ -59,6 +59,10 @@ class ClientViewModel {
             ReportingStrategies.MANAGED_MOVEMENT -> {
                 // TODO: Check conditions and (eventually) call send(fix, time, strategy)
             }
+
+            ReportingStrategies.MOVEMENT_BASED -> {
+                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
+            }
         }
     }
 
