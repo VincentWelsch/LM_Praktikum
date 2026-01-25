@@ -105,7 +105,7 @@ fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationMana
     val ctx = LocalContext.current
 
     Column (
-        modifier = Modifier.padding(innerPadding),
+        modifier = Modifier.padding(innerPadding).fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -390,9 +390,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 ReportingStrategies.DISTANCE_BASED, // task 1b)
                 ReportingStrategies.MANAGED_PERIODIC, // task 1c)
                 ReportingStrategies.MANAGED_MOVEMENT, // task 1d)
-                ReportingStrategies.DISTANCE_BASED, // task 1b)
-                ReportingStrategies.MANAGED_PERIODIC, // task 1b)
-                ReportingStrategies.MANAGED_MOVEMENT, // task 1c)
             ).forEach { strategy ->
                 Row(
                     Modifier.selectable(
