@@ -18,10 +18,6 @@ class ClientViewModel {
             distanceThreshold = threshold
         }
     }
-
-    fun getlastSentLocation(): PositionFix? {
-        return lastSentLocation
-    }
     fun setlastSentLocation(lastLocation: PositionFix?) {
         lastSentLocation = lastLocation;
     }
