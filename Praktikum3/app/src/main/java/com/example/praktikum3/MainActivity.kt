@@ -1,6 +1,5 @@
 package com.example.praktikum3
 
-import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -11,7 +10,6 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,7 +18,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -48,7 +45,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.praktikum3.ui.theme.Praktikum3Theme
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +53,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 import kotlin.math.sqrt
-import kotlin.text.toLong
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -314,6 +309,11 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     Log.d("ReportingStrategies", "Selected DISTANCE_BASED")
                     periodicJob?.cancel() // End job if already running
                     changePositionMethod(currentMethod)
+                    unregisterSensorListener(accelListener)
+                    client.setlastSentLocation(null);
+
+                    Log.d("ReportingStrategies", "Distance-based strategy activated")
+
                     // locationListener callback sends location fixes to client
                     // Client checks if new report is needed
                 }
@@ -490,7 +490,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                             jobDelay = newJobDelay
                     }) { Text(text = "Set") }
                 }
-                ReportingStrategies.DISTANCE_BASED -> {
+                ReportingStrategies.DISTANCE_BASED -> Row {
                     TextField(
                         value = distanceText,
                         onValueChange = { distanceText = it },

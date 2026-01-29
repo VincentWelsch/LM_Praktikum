@@ -19,6 +19,13 @@ class ClientViewModel {
         }
     }
 
+    fun getlastSentLocation(): PositionFix? {
+        return lastSentLocation
+    }
+    fun setlastSentLocation(lastLocation: PositionFix?) {
+        lastSentLocation = lastLocation;
+    }
+
     fun reportToServer(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
         fixCount += 1
         when (strategy) {
