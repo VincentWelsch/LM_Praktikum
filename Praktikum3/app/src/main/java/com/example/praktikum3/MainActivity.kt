@@ -509,7 +509,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 }
 
 
-                ReportingStrategies.MANAGED_PERIODIC,
+               // ReportingStrategies.MANAGED_PERIODIC,
                 ReportingStrategies.MANAGED_MOVEMENT -> Column {
                     Row {
                         // distanceThreshold is shared across 1b), 1c) and 1d)
