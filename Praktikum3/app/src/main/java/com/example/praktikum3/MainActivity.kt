@@ -134,6 +134,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         // Rate of updates with MANAGED_PERIODIC equals: distanceThreshold / maxVelocity
     var accelThreshold: Double by remember { mutableDoubleStateOf(10.0) } // in m/s^2
         // Movent with MANAGED_MOVEMENT detected when: acceleration >= accelThreshold
+    var isMoving: Boolean = false
 
 
     // Sensor config
@@ -162,6 +163,8 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         event.values[0].toDouble().pow(2.0) +
                                 event.values[1].toDouble().pow(2.0) +
                                 event.values[2].toDouble().pow(2.0))
+                    isMoving= acceleration > accelThreshold
+                    client.setIsMoving(isMoving)
                 }
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -324,7 +327,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                     periodicJob = scope.launch(Dispatchers.Default) {
                         var timeToWait: Long = 1000 * (distanceThreshold / maxVelocity).toLong()
                         if (timeToWait < 1000)
-                            timeToWait = 1000
+                            timeToWait = 1000 //Das ist eine Schutzmaßnahme, damit das System nicht in eine extrem hohe Abfragefrequenz rutscht.
                         // distanceThreshold must not be too low - else fixes are requested too frequently
                         Log.d("ReportingStrategies", "timeToWait: $timeToWait")
                         Log.d("ReportingStrategies", "Periodic job started")
@@ -354,10 +357,20 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         }
                     }
                 }
-                ReportingStrategies.MANAGED_MOVEMENT -> {
+                //LocationListener liefert GPS-FiXe aber nur wenn Bewegungserkannt wurde
+                ReportingStrategies.MANAGED_MOVEMENT -> { //GPS wird geholt wenn Bewegung erkannt wurde. und an Server gesendet wenn Distanz >= DistanceThreshold
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
                     periodicJob?.cancel() // End job if already running
-                    unregisterLocationListener(currentMethod)
+                    changePositionMethod(currentMethod)
+                    unregisterSensorListener(accelListener)
+                    registerSensorLister(
+                        accelListener,
+                        Sensor.TYPE_ACCELEROMETER,
+                        SensorManager.SENSOR_DELAY_NORMAL
+                    )
+
+                    client.setlastSentLocation(null);
+                    client.setIsMoving(false)
 
                 }
                 ReportingStrategies.MOVEMENT_BASED -> {
@@ -384,7 +397,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                     locationManager.getCurrentLocation(
                                         currentMethod,
                                         null,
-                                        ContextCompat.getMainExecutor(ctx),
+                                        ContextCompat.getMainExecutor(ctx), // hiermit wird immer die Location auf der Main oder UI-Thread ausgefüht
                                         { location ->
                                             if (location != null) {
                                                 client.reportToServer(
@@ -400,6 +413,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                             }
                                         }
                                     )
+                                    client.setIsMoving(true)
                                 } catch (e: Exception) {
                                     Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
                                 }
@@ -509,7 +523,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 }
 
 
-               // ReportingStrategies.MANAGED_PERIODIC,
+                ReportingStrategies.MANAGED_PERIODIC,
                 ReportingStrategies.MANAGED_MOVEMENT -> Column {
                     Row {
                         // distanceThreshold is shared across 1b), 1c) and 1d)
@@ -544,7 +558,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                 Button(onClick = {
                                     val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
                                     if (newMaxVelocity != null && newMaxVelocity > 0f) {
-                                        client.setDistanceThreshold(newMaxVelocity)
+                                        client.setMaxVelocity(newMaxVelocity)
                                         maxVelocity = newMaxVelocity
                                         changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
                                             // timeToWait in job is only calculated once to avoid unnecessary calculations
