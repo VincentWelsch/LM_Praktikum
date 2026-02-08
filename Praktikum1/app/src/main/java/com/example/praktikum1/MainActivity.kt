@@ -86,6 +86,7 @@ import kotlin.toBigDecimal
 
 class MainActivity : ComponentActivity() {
     private fun startApplication() {
+        // SensorManager und LovationManager initialisieren
         val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
 
@@ -217,7 +218,7 @@ fun Application(sensorManager: SensorManager,
 
     }
     DisposableEffect(Unit) {
-        viewModel.startProcessing()
+        viewModel .startProcessing()
         onDispose {
             viewModel.stopProcessing()
         }
