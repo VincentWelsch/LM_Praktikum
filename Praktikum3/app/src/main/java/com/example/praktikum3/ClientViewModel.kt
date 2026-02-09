@@ -8,9 +8,25 @@ class ClientViewModel {
     private var reportCount: Int = 0
     private var distanceThreshold: Float = 10f
     private var lastSentLocation: PositionFix? = null
-    private var isMoving: Boolean= false
+    private var isMoving: Boolean = false
 
-    private var maxVelocity: Float = 0f
+    fun incFixCount() {
+        fixCount += 1
+    }
+    fun getFixCount(): Int {
+        return fixCount
+    }
+    fun getReportCount(): Int {
+        return reportCount
+    }
+
+    fun getIsMoving(): Boolean {
+        return isMoving
+    }
+    fun setIsMoving(moving: Boolean) {
+        isMoving = moving
+    }
+
     fun getDistanceThreshold(): Float {
         return distanceThreshold
     }
@@ -21,21 +37,10 @@ class ClientViewModel {
             distanceThreshold = threshold
         }
     }
-    fun getMaxVelocity(): Float {
-        return maxVelocity
-    }
-    fun setMaxVelocity(velocity: Float) {
-       maxVelocity = velocity
-    }
-    fun setlastSentLocation(lastLocation: PositionFix?) {
-        lastSentLocation = lastLocation
-    }
 
-    fun setIsMoving(move: Boolean) {
-        isMoving = move
-    }
-    fun getIsMoving(): Boolean {
-       return  isMoving
+    fun setLastSentLocation(lastLocation: PositionFix?) {
+        // used to reset lastSentLocation when DISTANCE_BASED is used (for immediate report next fix)
+        lastSentLocation = lastLocation
     }
 
     fun reportToServer(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
@@ -44,87 +49,41 @@ class ClientViewModel {
             ReportingStrategies.NONE -> {
                 Log.w("ReportToServerError", "Reporting strategy NONE used")
             }
-            ReportingStrategies.PERIODIC -> {
+
+            ReportingStrategies.PERIODIC, // periodic (fixed time)
+            ReportingStrategies.MANAGED_PERIODIC, // managed (min time to cross threshold)
+            ReportingStrategies.MANAGED_MOVEMENT, // managed (movement detected)
+                    -> {
                 try {
-                    // TODO: Check conditions and (eventually) call send(fix, time, strategy)
+                    send(fix, time, strategy)
                     reportCount += 1
                 } catch(e: Exception) {
                     Log.e("ReportToServerError", "Failed to report to server: ${e.message}")
                 }
             }
-            ReportingStrategies.DISTANCE_BASED -> {
-                val last = lastSentLocation
 
+            ReportingStrategies.DISTANCE_BASED -> { // distance-based (threshold crossed)
+                val last = lastSentLocation
                 if (last == null) {
-                    // erster Fix → immer senden
+                    // Always send first fix
                     send(fix, time, strategy)
                     lastSentLocation = fix
                     reportCount += 1
                     return
                 }
-
-                // Distanz berechnen
+                // Calculate distance
                 val distance = calculateDistance(last, fix)
-
                 if (distance >= distanceThreshold) {
                     send(fix, time, strategy)
                     lastSentLocation = fix
                     reportCount += 1
                 }
-                else
-                    System.out.println("distance zwischen 2 GPS-FIX ist noch klein als Distanzschwelle")
             }
-            ReportingStrategies.MANAGED_PERIODIC -> {
 
-                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
-                try {
-                    send(fix, time, strategy)
-                    reportCount += 1
-                } catch (e: Exception) {
-                    Log.e("ReportToServerError", "Failed to report to server: ${e.message}")
-                }
-
-            }
-            ReportingStrategies.MANAGED_MOVEMENT -> {
-                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
-                // 1. Wenn keine Bewegung → nichts senden
-                if (!getIsMoving()) {
-                    Log.d("ManagedMovement", "No movement → no send")
-                    return
-                }
-
-                // 2. Hole letzte gesendete Position
-                val last = lastSentLocation
-
-                // 3. Wenn noch nie gesendet wurde → ersten Fix immer senden
-                if (last == null) {
-                    send(fix, time, strategy)
-                    lastSentLocation = fix
-                    reportCount += 1
-                    return
-                }
-
-                // 4. Distanz berechnen
-                val distance = calculateDistance(last, fix)
-
-                // 5. Wenn Distanzschwelle überschritten → senden
-                if (distance >= distanceThreshold) {
-                    send(fix, time, strategy)
-                    lastSentLocation = fix
-                    reportCount += 1
-                } else {
-                    Log.d("ManagedMovement", "Distance < threshold → no send")
-                }
-
-            }
-            ReportingStrategies.MOVEMENT_BASED -> {
-                // TODO: Check conditions and (eventually) call send(fix, time, strategy)
-                try {
-                    send(fix, time, strategy)
-                    reportCount += 1
-                } catch (e: Exception) {
-                    Log.e("ReportToServerError", "Failed to report to server: ${e.message}")
-                }
+            ReportingStrategies.MANAGED_PLUS_MOVEMENT, // managed+ (movement detected and threshold crossed)
+            ReportingStrategies.MANAGED_PLUS_PERIODIC,  // managed+ (estimated time to cross threshold)
+                    -> {
+                Log.w("ReportToServerError", "Reporting strategy $strategy not yet implemented")
             }
         }
     }
@@ -142,6 +101,11 @@ class ClientViewModel {
     }
 
     private fun send(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
+        Log.d("ReportToServer", """DEBUG: Report $reportCount
+            |Strategy: $strategy
+            |Fix: $fix
+            |Time: $time
+        """.trimMargin())
         // TODO: Communicate to server
     }
 }

@@ -1,5 +1,6 @@
 package com.example.praktikum3
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -13,6 +14,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -130,11 +132,10 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         // Rate of updates with PERIODIC equals: 1 / jobDelay
     var distanceThreshold: Float by remember { mutableFloatStateOf(client.getDistanceThreshold()) } // in m
         // Updates with DISTANCE_BASED when distance between periodic fix and last fix >= distanceThreshold
-    var maxVelocity: Float by remember { mutableFloatStateOf(1f) } // in m/s
+    var maxVelocity: Float by remember { mutableFloatStateOf(2f) } // in m/s
         // Rate of updates with MANAGED_PERIODIC equals: distanceThreshold / maxVelocity
     var accelThreshold: Double by remember { mutableDoubleStateOf(10.0) } // in m/s^2
         // Movent with MANAGED_MOVEMENT detected when: acceleration >= accelThreshold
-    var isMoving: Boolean = false
 
 
     // Sensor config
@@ -155,16 +156,22 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     // Listeners
     val accelListener = remember {
         object : SensorEventListener {
-            var acceleration: Double = 0.0;
+            var acceleration: Double = 0.0
+
+            @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event != null) {
-                    // Overall acceleration
-                    acceleration = sqrt(
+                    acceleration = sqrt( // overall acceleration
                         event.values[0].toDouble().pow(2.0) +
                                 event.values[1].toDouble().pow(2.0) +
                                 event.values[2].toDouble().pow(2.0))
-                    isMoving= acceleration > accelThreshold
-                    client.setIsMoving(isMoving)
+
+                    // TODO: find reliable method to detect movement (or get reference values)
+                    if (acceleration >= accelThreshold) {
+                        client.setIsMoving(true)
+                    } else {
+                        client.setIsMoving(false)
+                    }
                 }
             }
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
@@ -174,6 +181,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     }
 
     val locationListener: LocationListener = LocationListener { location ->
+        client.incFixCount()
         client.reportToServer(
             PositionFix(
                 location.latitude.toFloat(),
@@ -263,25 +271,29 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             Log.w("StrategyChangeWarning", "Location method changed to GPS")
         }
         try {
+            periodicJob?.cancel() // End job if already running
+
+            // unregister location and sensor listeners
+            unregisterLocationListener(currentMethod)
+            unregisterSensorListener(accelListener)
+            // unregisterSensorListener(gyroListener)
+            // unregisterSensorListener(magnetListener)
+
+            // reset to trigger immediate report at next fix (for DISTANCE_BASED)
+            client.setLastSentLocation(null)
+
+            // select strategy
             when (strategy) {
                 ReportingStrategies.NONE -> {
                     Log.d("ReportingStrategies", "Selected NONE")
-                    // Unregister location and sensor listeners
-                    unregisterLocationListener(currentMethod)
-                    unregisterSensorListener(accelListener)
-                    // unregisterSensorListener(gyroListener)
-                    // unregisterSensorListener(magnetListener)
-                    // End jobs
-                    periodicJob?.cancel()
                 }
                 ReportingStrategies.PERIODIC -> {
                     Log.d("ReportingStrategies", "Selected PERIODIC")
-                    periodicJob?.cancel() // End job if already running
-                    unregisterLocationListener(currentMethod)
                     periodicJob = scope.launch(Dispatchers.Default) {
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
                             try {
+                                client.incFixCount()
                                 locationManager.getCurrentLocation(
                                     currentMethod,
                                     null,
@@ -310,20 +322,14 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 }
                 ReportingStrategies.DISTANCE_BASED -> {
                     Log.d("ReportingStrategies", "Selected DISTANCE_BASED")
-                    periodicJob?.cancel() // End job if already running
                     changePositionMethod(currentMethod)
-                    unregisterSensorListener(accelListener)
-                    client.setlastSentLocation(null);
+                    // locationListener callback sends location fixes to client
+                    // ClientViewModel checks if new report is needed
 
                     Log.d("ReportingStrategies", "Distance-based strategy activated")
-
-                    // locationListener callback sends location fixes to client
-                    // Client checks if new report is needed
                 }
                 ReportingStrategies.MANAGED_PERIODIC -> {
                     Log.d("ReportingStrategies", "Selected MANAGED_PERIODIC")
-                    periodicJob?.cancel() // End job if already running
-                    unregisterLocationListener(currentMethod)
                     periodicJob = scope.launch(Dispatchers.Default) {
                         var timeToWait: Long = 1000 * (distanceThreshold / maxVelocity).toLong()
                         if (timeToWait < 1000)
@@ -333,6 +339,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
                             try {
+                                client.incFixCount()
                                 locationManager.getCurrentLocation(
                                     currentMethod,
                                     null,
@@ -357,47 +364,28 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         }
                     }
                 }
-                //LocationListener liefert GPS-FiXe aber nur wenn Bewegungserkannt wurde
-                ReportingStrategies.MANAGED_MOVEMENT -> { //GPS wird geholt wenn Bewegung erkannt wurde. und an Server gesendet wenn Distanz >= DistanceThreshold
+                ReportingStrategies.MANAGED_MOVEMENT -> {
+                    // GPS fix is only requested when movement is detected
+                    // fix is only sent to server if distance to last fix is greater/equal than the threshold
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
-                    periodicJob?.cancel() // End job if already running
                     changePositionMethod(currentMethod)
-                    unregisterSensorListener(accelListener)
-                    registerSensorLister(
-                        accelListener,
-                        Sensor.TYPE_ACCELEROMETER,
-                        SensorManager.SENSOR_DELAY_NORMAL
-                    )
-
-                    client.setlastSentLocation(null);
                     client.setIsMoving(false)
-
-                }
-                ReportingStrategies.MOVEMENT_BASED -> {
-                    Log.d("ReportingStrategies", "Selected MOVEMENT_BASED")
-                    // Jobs beenden, die gerade laufen
-                    periodicJob?.cancel()
-                    unregisterLocationListener(currentMethod)
-
-
-                    // Holen Sie sich den Sensor und registrieren Sie den Listener.
-                    val accelSensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-                    sensorManager.registerListener(accelListener, accelSensor, accelDelay)
+                    registerSensorLister(accelListener,Sensor.TYPE_ACCELEROMETER,
+                        SensorManager.SENSOR_DELAY_NORMAL)
 
                     periodicJob = scope.launch(Dispatchers.Default) {
                         Log.d("ReportingStrategies", "Movement-based job started")
                         while (true) {
-                            // 2. Prüfen, ob die Beschleunigung über dem Treshold liegt
-                            // Wir greifen auf die 'lastAcceleration' Eigenschaft des Listeners zu.
-                            if (accelListener.acceleration > accelThreshold) {
-                                Log.d("ReportingStrategies", "Movement detected! Acceleration: ${accelListener.acceleration}. Requesting location.")
+                            // accelListener tells ClientViewModel if movement is detected
+                            // this job only requests a location while the client thinks it is moving
+                            if (client.getIsMoving()) {
                                 try {
-                                    // Diese getCurrentLocation-Anfrage wird nur ausgeführt,
-                                    // wenn die Bedingung oben erfüllt ist.
+                                    client.incFixCount()
                                     locationManager.getCurrentLocation(
                                         currentMethod,
                                         null,
-                                        ContextCompat.getMainExecutor(ctx), // hiermit wird immer die Location auf der Main oder UI-Thread ausgefüht
+                                        ContextCompat.getMainExecutor(ctx),
+                                            // determine that this runs on the main or UI thread
                                         { location ->
                                             if (location != null) {
                                                 client.reportToServer(
@@ -407,23 +395,20 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                                         0f
                                                     ),
                                                     System.currentTimeMillis(),
-                                                    ReportingStrategies.MOVEMENT_BASED
+                                                    ReportingStrategies.MANAGED_MOVEMENT
                                                 )
-                                                Log.d("ReportingStrategies", "Location sent: $location")
                                             }
                                         }
                                     )
-                                    client.setIsMoving(true)
                                 } catch (e: Exception) {
                                     Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
                                 }
                             }
-                            delay(jobDelay)
+                            delay(jobDelay) // sleep
                         }
                     }
                 }
-
-
+                else -> {} // not yet implemented
             }
             currentStrategy = strategy
             Log.d("StrategyChange", "Strategy changed to $strategy")
@@ -451,11 +436,13 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         ) {
             Text(text = "Reporting strategy auswählen:")
             listOf(
-                ReportingStrategies.NONE, // wird gar nichts )
+                ReportingStrategies.NONE, // inactive
                 ReportingStrategies.PERIODIC, // task 1a)
                 ReportingStrategies.DISTANCE_BASED, // task 1b)
                 ReportingStrategies.MANAGED_PERIODIC, // task 1c)
                 ReportingStrategies.MANAGED_MOVEMENT, // task 1d)
+                ReportingStrategies.MANAGED_PLUS_MOVEMENT, // extension of task 1d)
+                ReportingStrategies.MANAGED_PLUS_PERIODIC, // extension of task 1c)
             ).forEach { strategy ->
                 Row(
                     Modifier.selectable(
@@ -483,11 +470,14 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         }
         // Strategy-specific configuration
         Column {
-            var periodicText by remember { mutableStateOf("") }
-            var distanceText by remember { mutableStateOf("") }
-            var maxVelocityText by remember { mutableStateOf("") }
-            var accelThresholdText by remember { mutableStateOf("") }
+            var periodicText by remember { mutableStateOf(jobDelay.toString()) }
+            var distanceText by remember { mutableStateOf(distanceThreshold.toString()) }
+            var maxVelocityText by remember { mutableStateOf(maxVelocity.toString()) }
+            var accelThresholdText by remember { mutableStateOf(accelThreshold.toString()) }
             when (currentStrategy) {
+                ReportingStrategies.NONE -> Row {
+                    Text(text = "No strategy selected")
+                }
                 ReportingStrategies.PERIODIC -> Row {
                     TextField(
                         value = periodicText,
@@ -504,48 +494,34 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                             jobDelay = newJobDelay
                     }) { Text(text = "Set") }
                 }
-                ReportingStrategies.DISTANCE_BASED -> Row {
-                    TextField(
-                        value = distanceText,
-                        onValueChange = { distanceText = it },
-                        label = { Text("distance in m)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.width(150.dp)
-                    )
-                    Button(onClick = {
-                        val newDistanceText: Float? = distanceText.toFloatOrNull()
-                        if (newDistanceText != null && newDistanceText >= 1f) {
-                            client.setDistanceThreshold(newDistanceText)
-                            // timeToWait in job is only calculated once to avoid unnecessary calculations
-                        }
-                    }) { Text(text = "Set") }
-                }
-
-
+                ReportingStrategies.DISTANCE_BASED,
                 ReportingStrategies.MANAGED_PERIODIC,
                 ReportingStrategies.MANAGED_MOVEMENT -> Column {
-                    Row {
-                        // distanceThreshold is shared across 1b), 1c) and 1d)
+                    Row { // distanceThreshold is shared across 1b), 1c) and 1d)
                         TextField(
-                            value = distanceThreshold.toString(),
-                            onValueChange = { distanceText = it },
-                            label = { Text("Threshold (m as Float)") },
+                            value = distanceText,
+                            onValueChange = { newText ->
+                                distanceText = newText.filter { it.isDigit() || it == '.' }
+                            },
+                            label = { Text("distance in m)") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
+                            singleLine = true,
+                            modifier = Modifier.width(150.dp)
                         )
                         Button(onClick = {
-                            val newDistanceThreshold: Float? = maxVelocityText.toFloatOrNull()
-                            if (newDistanceThreshold != null && newDistanceThreshold >= 1f) {
-                                client.setDistanceThreshold(distanceText.toFloat())
-                                distanceThreshold = distanceText.toFloat()
-                            } else {
-                                distanceText = distanceThreshold.toString()
+                            val newDistance: Float? = distanceText.toFloatOrNull()
+                            if (newDistance != null && newDistance >= 1f) {
+                                client.setDistanceThreshold(newDistance)
+                                distanceThreshold = newDistance
+                                // note: timeToWait in job is only calculated once to avoid unnecessary calculations
+                            } else if (newDistance != null) { // min 1 m
+                                client.setDistanceThreshold(1f)
+                                distanceThreshold = 1f
+                                distanceText = 1f.toString()
                             }
                         }) { Text(text = "Set") }
                     }
-                    // 1c) and 1d) are extensions of 1b)
-                    Row {
+                    Row { // 1c) and 1d) are extensions of 1b)
                         when (currentStrategy) {
                             ReportingStrategies.MANAGED_PERIODIC -> {
                                 TextField(
@@ -558,7 +534,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                 Button(onClick = {
                                     val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
                                     if (newMaxVelocity != null && newMaxVelocity > 0f) {
-                                        client.setMaxVelocity(newMaxVelocity)
                                         maxVelocity = newMaxVelocity
                                         changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
                                             // timeToWait in job is only calculated once to avoid unnecessary calculations
@@ -589,7 +564,9 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         } // inner when
                     }
                 }
-                else -> {}
+                else -> Row {
+                    Text(text = "Strategy not yet implemented")
+                }
             } // outer when
         } // Strategy-specific configuration
     }
