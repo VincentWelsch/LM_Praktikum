@@ -128,13 +128,13 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     val scope = rememberCoroutineScope()
 
     // Strategy Config
-    var jobDelay: Long by remember { mutableLongStateOf(5000) }
+    var jobDelay: Long by remember { mutableLongStateOf(client.getJobDelay()) }
         // Rate of updates with PERIODIC equals: 1 / jobDelay
     var distanceThreshold: Float by remember { mutableFloatStateOf(client.getDistanceThreshold()) } // in m
         // Updates with DISTANCE_BASED when distance between periodic fix and last fix >= distanceThreshold
-    var maxVelocity: Float by remember { mutableFloatStateOf(2f) } // in m/s
+    var maxVelocity: Float by remember { mutableFloatStateOf(client.getMaxVelocity()) } // in m/s
         // Rate of updates with MANAGED_PERIODIC equals: distanceThreshold / maxVelocity
-    var accelThreshold: Double by remember { mutableDoubleStateOf(10.0) } // in m/s^2
+    var accelThreshold: Double by remember { mutableDoubleStateOf(client.getAccelThreshold()) } // in m/s^2
         // Movent with MANAGED_MOVEMENT detected when: acceleration >= accelThreshold
 
 
@@ -179,7 +179,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             }
         }
     }
-
     val locationListener: LocationListener = LocationListener { location ->
         client.incFixCount()
         client.reportToServer(
@@ -267,7 +266,8 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     @Suppress("MissingPermission")
     fun changeStrategy(strategy: ReportingStrategies) {
         if (currentMethod != LocationManager.GPS_PROVIDER) {
-            changePositionMethod(LocationManager.GPS_PROVIDER)
+            unregisterLocationListener(currentMethod)
+            currentMethod = LocationManager.GPS_PROVIDER
             Log.w("StrategyChangeWarning", "Location method changed to GPS")
         }
         try {
@@ -411,6 +411,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 else -> {} // not yet implemented
             }
             currentStrategy = strategy
+            client.setStrategy(strategy)
             Log.d("StrategyChange", "Strategy changed to $strategy")
         } catch (e: Exception) {
             Log.e("StrategyChangeError", "Failed to change strategy: ${e.message}")
@@ -430,144 +431,172 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
 
     // Components
     Column {
-        // Reporting strategy selection
-        Column(modifier = Modifier.selectableGroup(),
-            verticalArrangement = Arrangement.spacedBy(16.dp) // Abstand zwischen allen Items
-        ) {
-            Text(text = "Reporting strategy auswählen:")
-            listOf(
-                ReportingStrategies.NONE, // inactive
-                ReportingStrategies.PERIODIC, // task 1a)
-                ReportingStrategies.DISTANCE_BASED, // task 1b)
-                ReportingStrategies.MANAGED_PERIODIC, // task 1c)
-                ReportingStrategies.MANAGED_MOVEMENT, // task 1d)
-                ReportingStrategies.MANAGED_PLUS_MOVEMENT, // extension of task 1d)
-                ReportingStrategies.MANAGED_PLUS_PERIODIC, // extension of task 1c)
-            ).forEach { strategy ->
-                Row(
-                    Modifier.selectable(
-                        selected = (strategy == currentStrategy),
-                        onClick = {
-                            try {
-                                changeStrategy(strategy)
-                            } catch (e: Exception) {
-                                Log.e(
-                                    "StrategyChangeError",
-                                    "Failed to change strategy: ${e.message}"
-                                )
-                            }
-                        },
-                        role = Role.RadioButton
-                    )
-                ) {
-                    RadioButton(
-                        selected = (strategy == currentStrategy),
-                        onClick = null
-                    )
-                    Text(text = strategy.desc)
-                }
+        StrategySelection(client, ::changeStrategy)
+        StrategyConfiguration(client, ::changeStrategy)
+    }
+}
+
+@Composable
+fun StrategySelection(client: ClientViewModel, changeStrategy: (ReportingStrategies) -> Unit) {
+    // Reporting strategy selection
+    Column(
+        modifier = Modifier.selectableGroup(),
+        verticalArrangement = Arrangement.spacedBy(16.dp) // Abstand zwischen allen Items
+    ) {
+        Text(text = "Select reporting strategy:")
+        listOf(
+            ReportingStrategies.NONE, // inactive
+            ReportingStrategies.PERIODIC, // task 1a)
+            ReportingStrategies.DISTANCE_BASED, // task 1b)
+            ReportingStrategies.MANAGED_PERIODIC, // task 1c)
+            ReportingStrategies.MANAGED_MOVEMENT, // task 1d)
+            ReportingStrategies.MANAGED_PLUS_MOVEMENT, // extension of task 1d)
+            ReportingStrategies.MANAGED_PLUS_PERIODIC, // extension of task 1c)
+        ).forEach { strategy ->
+            Row(
+                Modifier.selectable(
+                    selected = (strategy == client.getCurrentStrategy()),
+                    onClick = {
+                        try {
+                            changeStrategy(strategy)
+                        } catch (e: Exception) {
+                            Log.e(
+                                "StrategyChangeError",
+                                "Failed to change strategy: ${e.message}"
+                            )
+                        }
+                    },
+                    role = Role.RadioButton
+                )
+            ) {
+                RadioButton(
+                    selected = (strategy == client.getCurrentStrategy()),
+                    onClick = null
+                )
+                Text(text = strategy.desc)
             }
         }
-        // Strategy-specific configuration
-        Column {
-            var periodicText by remember { mutableStateOf(jobDelay.toString()) }
-            var distanceText by remember { mutableStateOf(distanceThreshold.toString()) }
-            var maxVelocityText by remember { mutableStateOf(maxVelocity.toString()) }
-            var accelThresholdText by remember { mutableStateOf(accelThreshold.toString()) }
-            when (currentStrategy) {
-                ReportingStrategies.NONE -> Row {
+    }
+}
+
+@Composable
+fun StrategyConfiguration(client: ClientViewModel, changeStrategy: (ReportingStrategies) -> Unit) {
+    // Strategy-specific configuration
+    Column {
+        var periodicText by remember { mutableStateOf(client.getJobDelay().toString()) }
+        var distanceText by remember { mutableStateOf(client.getDistanceThreshold().toString()) }
+        var maxVelocityText by remember { mutableStateOf(client.getMaxVelocity().toString()) }
+        var accelThresholdText by remember { mutableStateOf(client.getAccelThreshold().toString()) }
+        when (client.getCurrentStrategy()) {
+            ReportingStrategies.NONE -> Row {
+                Column {
                     Text(text = "No strategy selected")
+                    Button(onClick = {
+                        changeStrategy(ReportingStrategies.NONE)
+                        client.resetCounts()
+                    }) { Text(text = "Reset strategy and counts") }
+                    Button(onClick = {
+                        changeStrategy(ReportingStrategies.NONE)
+                        client.resetStrategyVars()
+                        periodicText = client.getJobDelay().toString()
+                        distanceText = client.getDistanceThreshold().toString()
+                        maxVelocityText = client.getMaxVelocity().toString()
+                        accelThresholdText = client.getAccelThreshold().toString()
+                    }) { Text(text = "Reset strategy and variables") }
                 }
-                ReportingStrategies.PERIODIC -> Row {
+            }
+            ReportingStrategies.PERIODIC -> Row {
+                TextField(
+                    value = periodicText,
+                    onValueChange = { newText ->
+                        periodicText = newText.filter { it.isDigit() }
+                    },
+                    label = { Text("Delay (ms as Long)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+                Button(onClick = {
+                    val newJobDelay: Long? = periodicText.toLongOrNull()
+                    if (newJobDelay != null) {
+                        client.setJobDelay(newJobDelay)
+                    }
+                    periodicText = client.getJobDelay().toString()
+                }) { Text(text = "Set") }
+            }
+            ReportingStrategies.DISTANCE_BASED,
+            ReportingStrategies.MANAGED_PERIODIC,
+            ReportingStrategies.MANAGED_MOVEMENT -> Column {
+                Row { // distanceThreshold is shared across 1b), 1c) and 1d)
                     TextField(
-                        value = periodicText,
+                        value = distanceText,
                         onValueChange = { newText ->
-                            periodicText = newText.filter { it.isDigit() }
+                            distanceText = newText.filter { it.isDigit() || it == '.' }
                         },
-                        label = { Text("Delay (ms as Long)") },
+                        label = { Text("Distance threshold (in m as Float))") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.width(150.dp)
                     )
                     Button(onClick = {
-                        val newJobDelay: Long? = periodicText.toLongOrNull()
-                        if (newJobDelay != null && newJobDelay >= 500)
-                            jobDelay = newJobDelay
+                        val newDistance: Float? = distanceText.toFloatOrNull()
+                        if (newDistance != null) {
+                            client.setDistanceThreshold(newDistance)
+                            if (client.getCurrentStrategy() == ReportingStrategies.MANAGED_PERIODIC)
+                                changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
+                                    // recalculate timeToWait
+                                    // timeToWait in job is only calculated once to avoid unnecessary calculations
+                        }
+                        distanceText = client.getDistanceThreshold().toString()
                     }) { Text(text = "Set") }
                 }
-                ReportingStrategies.DISTANCE_BASED,
-                ReportingStrategies.MANAGED_PERIODIC,
-                ReportingStrategies.MANAGED_MOVEMENT -> Column {
-                    Row { // distanceThreshold is shared across 1b), 1c) and 1d)
-                        TextField(
-                            value = distanceText,
-                            onValueChange = { newText ->
-                                distanceText = newText.filter { it.isDigit() || it == '.' }
-                            },
-                            label = { Text("distance in m)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.width(150.dp)
-                        )
-                        Button(onClick = {
-                            val newDistance: Float? = distanceText.toFloatOrNull()
-                            if (newDistance != null && newDistance >= 1f) {
-                                client.setDistanceThreshold(newDistance)
-                                distanceThreshold = newDistance
-                                // note: timeToWait in job is only calculated once to avoid unnecessary calculations
-                            } else if (newDistance != null) { // min 1 m
-                                client.setDistanceThreshold(1f)
-                                distanceThreshold = 1f
-                                distanceText = 1f.toString()
-                            }
-                        }) { Text(text = "Set") }
-                    }
-                    Row { // 1c) and 1d) are extensions of 1b)
-                        when (currentStrategy) {
-                            ReportingStrategies.MANAGED_PERIODIC -> {
-                                TextField(
-                                    value = maxVelocity.toString(),
-                                    onValueChange = { maxVelocityText = it },
-                                    label = { Text("Max velocity (m/s as Float)") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true
-                                )
-                                Button(onClick = {
-                                    val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
-                                    if (newMaxVelocity != null && newMaxVelocity > 0f) {
-                                        maxVelocity = newMaxVelocity
-                                        changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
-                                            // timeToWait in job is only calculated once to avoid unnecessary calculations
-                                    } else {
-                                        maxVelocityText = maxVelocity.toString()
-                                    }
-                                }) { Text(text = "Set") }
-                            }
-                            ReportingStrategies.MANAGED_MOVEMENT -> {
-                                TextField(
-                                    value = accelThreshold.toString(),
-                                    onValueChange = { accelThresholdText = it },
-                                    label = { Text("Acceleration threshold (m/s^2 as Double)") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    singleLine = true
-                                )
-                                Button(onClick = {
-                                    val newAccelThreshold: Double? = accelThresholdText.toDoubleOrNull()
-                                    if (newAccelThreshold != null && newAccelThreshold > 0.0) {
-                                        accelThreshold = newAccelThreshold
-                                    } else {
-                                        accelThresholdText = accelThreshold.toString()
-                                    }
-                                }) { Text(text = "Set") }
-                                Text(text = "Accel: $acceleration")
-                            }
-                            else -> {}
-                        } // inner when
-                    }
+                Row { // 1c) and 1d) are extensions of 1b)
+                    when (client.getCurrentStrategy()) {
+                        ReportingStrategies.MANAGED_PERIODIC -> {
+                            TextField(
+                                value = client.getMaxVelocity().toString(),
+                                onValueChange = { newText ->
+                                    maxVelocityText = newText.filter { it.isDigit() }
+                                },
+                                label = { Text("Max velocity (m/s as Float)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true
+                            )
+                            Button(onClick = {
+                                val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
+                                if (newMaxVelocity != null) {
+                                    client.setMaxVelocity(newMaxVelocity)
+                                    changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
+                                        // recalculate timeToWait
+                                        // timeToWait in job is only calculated once to avoid unnecessary calculations
+                                }
+                                maxVelocityText = client.getMaxVelocity().toString()
+                            }) { Text(text = "Set") }
+                        }
+                        ReportingStrategies.MANAGED_MOVEMENT -> {
+                            TextField(
+                                value = client.getAccelThreshold().toString(),
+                                onValueChange = { newText ->
+                                    accelThresholdText = newText.filter { it.isDigit() }
+                                },
+                                label = { Text("Acceleration threshold (m/s^2 as Double)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true
+                            )
+                            Button(onClick = {
+                                val newAccelThreshold: Double? = accelThresholdText.toDoubleOrNull()
+                                if (newAccelThreshold != null) {
+                                    client.setAccelThreshold(newAccelThreshold)
+                                }
+                                accelThresholdText = client.getAccelThreshold().toString()
+                            }) { Text(text = "Set") }
+                        }
+                        else -> {}
+                    } // inner when
                 }
-                else -> Row {
-                    Text(text = "Strategy not yet implemented")
-                }
-            } // outer when
-        } // Strategy-specific configuration
-    }
+            }
+            else -> Row {
+                Text(text = "Strategy not yet implemented")
+            }
+        } // outer when
+    } // Strategy-specific configuration
 }

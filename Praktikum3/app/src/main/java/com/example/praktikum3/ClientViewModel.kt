@@ -4,22 +4,79 @@ import android.location.Location
 import android.util.Log
 
 class ClientViewModel {
-    private var fixCount: Int = 0
-    private var reportCount: Int = 0
-    private var distanceThreshold: Float = 10f
-    private var lastSentLocation: PositionFix? = null
-    private var isMoving: Boolean = false
+    // ==========================================================================================
+    // current strategy
+    // ==========================================================================================
+    private var strategy: ReportingStrategies = ReportingStrategies.NONE // strategy
+    fun getCurrentStrategy(): ReportingStrategies {
+        return strategy
+    }
+    fun setStrategy(strategy: ReportingStrategies) {
+        this.strategy = strategy
+    }
 
+    // ==========================================================================================
+    // counting
+    // ==========================================================================================
+    private var fixCount: Int = 0 // fixCount
     fun incFixCount() {
         fixCount += 1
     }
     fun getFixCount(): Int {
         return fixCount
     }
+    private var reportCount: Int = 0 // reportCount
     fun getReportCount(): Int {
         return reportCount
     }
 
+    // ==========================================================================================
+    // strategy-specific variables
+    // ==========================================================================================
+    private var jobDelay: Long = 5000 // jobDelay
+    fun getJobDelay(): Long {
+        return jobDelay
+    }
+    fun setJobDelay(delay: Long) {
+        if (delay < 500) {
+            jobDelay = 500
+        } else {
+            jobDelay = delay
+        }
+    }
+    private var distanceThreshold: Float = 10f // distanceThreshold
+    fun getDistanceThreshold(): Float {
+        return distanceThreshold
+    }
+    fun setDistanceThreshold(threshold: Float) {
+        if (threshold > 1f) {
+            distanceThreshold = threshold
+        }
+    }
+    private var lastSentLocation: PositionFix? = null // lastSentLocation
+    fun setLastSentLocation(lastLocation: PositionFix?) {
+        // used to reset lastSentLocation when DISTANCE_BASED is used (for immediate report next fix)
+        lastSentLocation = lastLocation
+    }
+    private var maxVelocity: Float = 2f // maxVelocity
+    fun getMaxVelocity(): Float {
+        return maxVelocity
+    }
+    fun setMaxVelocity(velocity: Float) {
+        if (velocity > 0f) {
+            maxVelocity = velocity
+        }
+    }
+    private var accelThreshold: Double = 10.0 // accelThreshold
+    fun getAccelThreshold(): Double {
+        return accelThreshold
+    }
+    fun setAccelThreshold(threshold: Double) {
+        if (threshold > 0) {
+            accelThreshold = threshold
+        }
+    }
+    private var isMoving: Boolean = false // isMoving
     fun getIsMoving(): Boolean {
         return isMoving
     }
@@ -27,22 +84,26 @@ class ClientViewModel {
         isMoving = moving
     }
 
-    fun getDistanceThreshold(): Float {
-        return distanceThreshold
-    }
-    fun setDistanceThreshold(threshold: Float) {
-        if (threshold < 1f) {
-            distanceThreshold = 1f
-        } else {
-            distanceThreshold = threshold
-        }
+    // ==========================================================================================
+    // reset methods
+    // ==========================================================================================
+    fun resetCounts() {
+        fixCount = 0
+        reportCount = 0
     }
 
-    fun setLastSentLocation(lastLocation: PositionFix?) {
-        // used to reset lastSentLocation when DISTANCE_BASED is used (for immediate report next fix)
-        lastSentLocation = lastLocation
+    fun resetStrategyVars() {
+        jobDelay = 5000
+        distanceThreshold = 10f
+        lastSentLocation = null
+        maxVelocity = 2f
+        accelThreshold = 10.0
+        isMoving = false
     }
 
+    // ==========================================================================================
+    // client-specific methods
+    // ==========================================================================================
     fun reportToServer(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
         fixCount += 1
         when (strategy) {
