@@ -43,6 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -124,6 +125,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
     var currentStrategy: ReportingStrategies by remember { mutableStateOf(ReportingStrategies.NONE) }
     var acceleration: Double by remember { mutableDoubleStateOf(0.0) }
+    var accelerationTextColor: Color by remember { mutableStateOf(Color.DarkGray) }
     var periodicJob: Job? by remember { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
@@ -155,22 +157,34 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
 
     // Listeners
     val accelListener = remember {
-        object : SensorEventListener {
-            var acceleration: Double = 0.0
+        // during movement, acceleration might drop below threshold in small intervals
+        // isMoving should therefore remain true for some time and not be immediately set to false
+        val MIN_IS_MOVING_DUATION: Int = 50
+        var minIsMovingDuration: Int = MIN_IS_MOVING_DUATION
+        // SENSOR_DELAY_NORMAL is 0.2 s delay
+        // with minIsMovingDuration set to 50, isMoving should remain true for at least 10 s
+        // however, at least the debug text is displayed as green for much shorter
 
+        object : SensorEventListener {
             @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event != null) {
-                    acceleration = sqrt( // overall acceleration
+                    acceleration = sqrt( // calculate overall acceleration
                         event.values[0].toDouble().pow(2.0) +
                                 event.values[1].toDouble().pow(2.0) +
                                 event.values[2].toDouble().pow(2.0))
 
-                    // TODO: find reliable method to detect movement (or get reference values)
-                    if (acceleration >= accelThreshold) {
+                    if (acceleration >= accelThreshold) { // check if above threshold
+                        minIsMovingDuration = MIN_IS_MOVING_DUATION // still moving -> reset timer
                         client.setIsMoving(true)
+                        accelerationTextColor = Color.Green
                     } else {
-                        client.setIsMoving(false)
+                        minIsMovingDuration -= 1 // count down in 0.2 s increments
+                        if (minIsMovingDuration <= 0) { // if below threshold for long enough
+                            // set isMoving to false
+                            client.setIsMoving(false)
+                            accelerationTextColor = Color.DarkGray
+                        }
                     }
                 }
             }
@@ -411,7 +425,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                 else -> {} // not yet implemented
             }
             currentStrategy = strategy
-            client.setStrategy(strategy)
             Log.d("StrategyChange", "Strategy changed to $strategy")
         } catch (e: Exception) {
             Log.e("StrategyChangeError", "Failed to change strategy: ${e.message}")
@@ -431,13 +444,17 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
 
     // Components
     Column {
-        StrategySelection(client, ::changeStrategy)
-        StrategyConfiguration(client, ::changeStrategy)
+        StrategySelection(client, currentStrategy, ::changeStrategy)
+        StrategyConfiguration(client, currentStrategy, ::changeStrategy)
+        if (currentStrategy == ReportingStrategies.MANAGED_MOVEMENT || currentStrategy == ReportingStrategies.MANAGED_PLUS_MOVEMENT)
+            Text(text = "Accel $acceleration", color = accelerationTextColor)
     }
 }
 
 @Composable
-fun StrategySelection(client: ClientViewModel, changeStrategy: (ReportingStrategies) -> Unit) {
+fun StrategySelection(client: ClientViewModel,
+                      currentStrategy: ReportingStrategies,
+                      changeStrategy: (ReportingStrategies) -> Unit) {
     // Reporting strategy selection
     Column(
         modifier = Modifier.selectableGroup(),
@@ -455,7 +472,7 @@ fun StrategySelection(client: ClientViewModel, changeStrategy: (ReportingStrateg
         ).forEach { strategy ->
             Row(
                 Modifier.selectable(
-                    selected = (strategy == client.getCurrentStrategy()),
+                    selected = (strategy == currentStrategy),
                     onClick = {
                         try {
                             changeStrategy(strategy)
@@ -470,7 +487,7 @@ fun StrategySelection(client: ClientViewModel, changeStrategy: (ReportingStrateg
                 )
             ) {
                 RadioButton(
-                    selected = (strategy == client.getCurrentStrategy()),
+                    selected = (strategy == currentStrategy),
                     onClick = null
                 )
                 Text(text = strategy.desc)
@@ -480,14 +497,16 @@ fun StrategySelection(client: ClientViewModel, changeStrategy: (ReportingStrateg
 }
 
 @Composable
-fun StrategyConfiguration(client: ClientViewModel, changeStrategy: (ReportingStrategies) -> Unit) {
+fun StrategyConfiguration(client: ClientViewModel,
+                          currentStrategy: ReportingStrategies,
+                          changeStrategy: (ReportingStrategies) -> Unit) {
     // Strategy-specific configuration
     Column {
         var periodicText by remember { mutableStateOf(client.getJobDelay().toString()) }
         var distanceText by remember { mutableStateOf(client.getDistanceThreshold().toString()) }
         var maxVelocityText by remember { mutableStateOf(client.getMaxVelocity().toString()) }
         var accelThresholdText by remember { mutableStateOf(client.getAccelThreshold().toString()) }
-        when (client.getCurrentStrategy()) {
+        when (currentStrategy) {
             ReportingStrategies.NONE -> Row {
                 Column {
                     Text(text = "No strategy selected")
@@ -532,7 +551,7 @@ fun StrategyConfiguration(client: ClientViewModel, changeStrategy: (ReportingStr
                         onValueChange = { newText ->
                             distanceText = newText.filter { it.isDigit() || it == '.' }
                         },
-                        label = { Text("Distance threshold (in m as Float))") },
+                        label = { Text("Distance threshold (in m as Float)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.width(150.dp)
@@ -541,7 +560,7 @@ fun StrategyConfiguration(client: ClientViewModel, changeStrategy: (ReportingStr
                         val newDistance: Float? = distanceText.toFloatOrNull()
                         if (newDistance != null) {
                             client.setDistanceThreshold(newDistance)
-                            if (client.getCurrentStrategy() == ReportingStrategies.MANAGED_PERIODIC)
+                            if (currentStrategy == ReportingStrategies.MANAGED_PERIODIC)
                                 changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
                                     // recalculate timeToWait
                                     // timeToWait in job is only calculated once to avoid unnecessary calculations
@@ -550,7 +569,7 @@ fun StrategyConfiguration(client: ClientViewModel, changeStrategy: (ReportingStr
                     }) { Text(text = "Set") }
                 }
                 Row { // 1c) and 1d) are extensions of 1b)
-                    when (client.getCurrentStrategy()) {
+                    when (currentStrategy) {
                         ReportingStrategies.MANAGED_PERIODIC -> {
                             TextField(
                                 value = client.getMaxVelocity().toString(),

@@ -7,13 +7,13 @@ class ClientViewModel {
     // ==========================================================================================
     // current strategy
     // ==========================================================================================
-    private var strategy: ReportingStrategies = ReportingStrategies.NONE // strategy
+    /*private var strategy: ReportingStrategies = ReportingStrategies.NONE // strategy
     fun getCurrentStrategy(): ReportingStrategies {
         return strategy
     }
     fun setStrategy(strategy: ReportingStrategies) {
         this.strategy = strategy
-    }
+    }*/
 
     // ==========================================================================================
     // counting
