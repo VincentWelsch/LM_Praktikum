@@ -56,6 +56,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 import kotlin.math.sqrt
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -619,3 +625,48 @@ fun StrategyConfiguration(client: ClientViewModel,
         } // outer when
     } // Strategy-specific configuration
 }
+
+@Composable
+
+fun getLocalFixes(client: ClientViewModel): List<Pair<PositionFix, Boolean>> {
+    return client.getLocalFixes()
+}
+
+@Composable
+fun site_map(sensorManager: SensorManager, locationManager: LocationManager){
+    OsmMapScreen(floatArrayOf(0f, 0f))
+}
+
+@Composable
+fun OsmMapScreen(positionData: FloatArray) {
+
+    AndroidView(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp), // This fixed height is the key to solving the zoom issue
+        factory = {
+            MapView(it).apply {
+                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                controller.setZoom(15.0)
+                setMultiTouchControls(true)
+                controller.setCenter(GeoPoint(51.482582, 7.217153)) // Default: Bochumer Innenstadt (nur Startposition)
+            }
+        },
+        update = { mapView ->
+            if (positionData.size == 2 && positionData[0] != 0f && positionData[1] != 0f) {
+                val geoPoint = GeoPoint(positionData[1].toDouble(), positionData[0].toDouble())
+                mapView.controller.setCenter(geoPoint)
+                mapView.controller.setZoom(16.0)
+
+                // Clear existing overlays and add a new marker
+                mapView.overlays.clear()
+                val marker = Marker(mapView)
+                marker.position = geoPoint
+                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                mapView.overlays.add(marker)
+                mapView.invalidate()
+            }
+        }
+    )
+}
+

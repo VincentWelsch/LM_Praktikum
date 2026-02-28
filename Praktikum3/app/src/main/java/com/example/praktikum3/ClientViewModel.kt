@@ -2,6 +2,8 @@ package com.example.praktikum3
 
 import android.location.Location
 import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateListOf
 
 class ClientViewModel {
     // ==========================================================================================
@@ -14,7 +16,30 @@ class ClientViewModel {
     fun setStrategy(strategy: ReportingStrategies) {
         this.strategy = strategy
     }*/
+    private val localFixes = mutableListOf<Pair<PositionFix, Boolean>>(
+        Pair(PositionFix(51.482f, 7.217f, 0f), true),
+        Pair(PositionFix(51.483f, 7.218f, 0f), false),
+        Pair(PositionFix(51.484f, 7.219f, 0f), true),
+        Pair(PositionFix(51.485f, 7.220f, 0f), true),
+        Pair(PositionFix(51.486f, 7.221f, 0f), false)
+    )
 
+    fun getLocalFixes(): List<Pair<PositionFix, Boolean>> {
+        return localFixes.toList()
+    }
+
+    class ClientViewModel {    // Mit mutableStateListOf erkennt Compose automatisch Änderungen
+        private val localFixes = mutableStateListOf<Pair<PositionFix, Boolean>>(
+            // Deine 5 Beispieldaten...
+            Pair(PositionFix(51.482f, 7.217f, 0f), true),
+            // ...
+        )
+
+        fun getLocalFixes(): List<Pair<PositionFix, Boolean>> = localFixes
+
+        // In reportToServer:
+        // localFixes.add(Pair(fix, wasSent)) -> Triggert jetzt automatisch ein UI-Update
+    }
     // ==========================================================================================
     // counting
     // ==========================================================================================
@@ -106,20 +131,24 @@ class ClientViewModel {
     // ==========================================================================================
     fun reportToServer(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
         fixCount += 1
+        var wasSent = false // Hilfsvariable für den Status
+
         when (strategy) {
             ReportingStrategies.NONE -> {
                 Log.w("ReportToServerError", "Reporting strategy NONE used")
+                wasSent = false
             }
 
             ReportingStrategies.PERIODIC, // periodic (fixed time)
             ReportingStrategies.MANAGED_PERIODIC, // managed (min time to cross threshold)
             ReportingStrategies.MANAGED_MOVEMENT, // managed (movement detected)
-                    -> {
+                -> {
                 try {
                     send(fix, time, strategy)
                     reportCount += 1
-                } catch(e: Exception) {
+                } catch (e: Exception) {
                     Log.e("ReportToServerError", "Failed to report to server: ${e.message}")
+                    wasSent = false
                 }
             }
 
@@ -130,23 +159,40 @@ class ClientViewModel {
                     send(fix, time, strategy)
                     lastSentLocation = fix
                     reportCount += 1
+                    wasSent = true
                     return
+                } else {
+                    val distance = calculateDistance(last, fix)
+                    if (distance >= distanceThreshold) {
+                        send(fix, time, strategy)
+                        lastSentLocation = fix
+                        reportCount += 1
+                        wasSent = true
+                    } else {
+                        wasSent = false // Distanz zu klein
+                    }
                 }
+
                 // Calculate distance
                 val distance = calculateDistance(last, fix)
                 if (distance >= distanceThreshold) {
                     send(fix, time, strategy)
                     lastSentLocation = fix
                     reportCount += 1
+                } else {
+                    Log.w("ReportToServerError", "Reporting strategy $strategy not yet implemented")
+                    wasSent = false
                 }
             }
 
             ReportingStrategies.MANAGED_PLUS_MOVEMENT, // managed+ (movement detected and threshold crossed)
             ReportingStrategies.MANAGED_PLUS_PERIODIC,  // managed+ (estimated time to cross threshold)
-                    -> {
+                -> {
                 Log.w("ReportToServerError", "Reporting strategy $strategy not yet implemented")
             }
         }
+        // Am Ende jeder Messung: Speichere den Fix und ob er gesendet wurde
+        localFixes.add(Pair(fix, wasSent))
     }
 
     private fun calculateDistance(a: PositionFix, b: PositionFix): Float {
