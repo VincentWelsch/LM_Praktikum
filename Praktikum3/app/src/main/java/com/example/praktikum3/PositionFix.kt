@@ -6,7 +6,7 @@ data class PositionFix(
     val latitude: Float,
     val longitude: Float,
     val altitude: Float,
-    val wasReported: Boolean = false,
+    var wasReported: Boolean = false,
 ) {
     // equals/hashCode must be overridden
     // https://www.baeldung.com/kotlin/data-class-equals-method

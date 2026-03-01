@@ -627,12 +627,6 @@ fun StrategyConfiguration(client: ClientViewModel,
 }
 
 @Composable
-
-fun getLocalFixes(client: ClientViewModel): List<Pair<PositionFix, Boolean>> {
-    return client.getLocalFixes()
-}
-
-@Composable
 fun site_map(sensorManager: SensorManager, locationManager: LocationManager){
     OsmMapScreen(floatArrayOf(0f, 0f))
 }

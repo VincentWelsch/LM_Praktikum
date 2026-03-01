@@ -1,5 +1,6 @@
 package com.example.praktikum3
 
+import android.icu.text.Transliterator
 import android.location.Location
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
@@ -16,30 +17,32 @@ class ClientViewModel {
     fun setStrategy(strategy: ReportingStrategies) {
         this.strategy = strategy
     }*/
-    private val localFixes = mutableListOf<Pair<PositionFix, Boolean>>(
-        Pair(PositionFix(51.482f, 7.217f, 0f), true),
-        Pair(PositionFix(51.483f, 7.218f, 0f), false),
-        Pair(PositionFix(51.484f, 7.219f, 0f), true),
-        Pair(PositionFix(51.485f, 7.220f, 0f), true),
-        Pair(PositionFix(51.486f, 7.221f, 0f), false)
+
+    // ==========================================================================================
+    // local fixes
+    // ==========================================================================================
+    private val localFixes = mutableListOf<PositionFix>()
+
+    private val mockLocalFixes: Array<PositionFix> = arrayOf<PositionFix>(
+        PositionFix(51.482f, 7.217f, 0f, true),
+        PositionFix(51.483f, 7.218f, 0f, false),
+        PositionFix(51.484f, 7.219f, 0f, true),
+        PositionFix(51.485f, 7.220f, 0f, true),
+        PositionFix(51.486f, 7.221f, 0f, false)
     )
 
-    fun getLocalFixes(): List<Pair<PositionFix, Boolean>> {
-        return localFixes.toList()
+    fun getLocalFixes(): Array<PositionFix> {
+        return mockLocalFixes // TODO: return actual local fixes
     }
 
-    class ClientViewModel {    // Mit mutableStateListOf erkennt Compose automatisch Änderungen
-        private val localFixes = mutableStateListOf<Pair<PositionFix, Boolean>>(
-            // Deine 5 Beispieldaten...
-            Pair(PositionFix(51.482f, 7.217f, 0f), true),
-            // ...
-        )
-
-        fun getLocalFixes(): List<Pair<PositionFix, Boolean>> = localFixes
-
-        // In reportToServer:
-        // localFixes.add(Pair(fix, wasSent)) -> Triggert jetzt automatisch ein UI-Update
+    fun loadRun(runId: String) {
+        // TODO
     }
+
+    fun storeRun(runId: String) {
+        // TODO
+    }
+
     // ==========================================================================================
     // counting
     // ==========================================================================================
@@ -131,7 +134,7 @@ class ClientViewModel {
     // ==========================================================================================
     fun reportToServer(fix: PositionFix, time: Long, strategy: ReportingStrategies) {
         fixCount += 1
-        var wasSent = false // Hilfsvariable für den Status
+        var wasSent = false // remember if fix was sent
 
         when (strategy) {
             ReportingStrategies.NONE -> {
@@ -146,6 +149,7 @@ class ClientViewModel {
                 try {
                     send(fix, time, strategy)
                     reportCount += 1
+                    wasSent = true
                 } catch (e: Exception) {
                     Log.e("ReportToServerError", "Failed to report to server: ${e.message}")
                     wasSent = false
@@ -160,28 +164,18 @@ class ClientViewModel {
                     lastSentLocation = fix
                     reportCount += 1
                     wasSent = true
-                    return
                 } else {
+                    // Calculate distance
                     val distance = calculateDistance(last, fix)
                     if (distance >= distanceThreshold) {
+                        // Send if beyond threshold
                         send(fix, time, strategy)
-                        lastSentLocation = fix
+                        lastSentLocation = fix // remember as last
                         reportCount += 1
                         wasSent = true
-                    } else {
-                        wasSent = false // Distanz zu klein
+                    } else { // distance too small
+                        wasSent = false
                     }
-                }
-
-                // Calculate distance
-                val distance = calculateDistance(last, fix)
-                if (distance >= distanceThreshold) {
-                    send(fix, time, strategy)
-                    lastSentLocation = fix
-                    reportCount += 1
-                } else {
-                    Log.w("ReportToServerError", "Reporting strategy $strategy not yet implemented")
-                    wasSent = false
                 }
             }
 
@@ -191,8 +185,13 @@ class ClientViewModel {
                 Log.w("ReportToServerError", "Reporting strategy $strategy not yet implemented")
             }
         }
-        // Am Ende jeder Messung: Speichere den Fix und ob er gesendet wurde
-        localFixes.add(Pair(fix, wasSent))
+
+        // Track fixes locally for later visualization
+        if (wasSent) {
+            fix.wasReported = true // update fix to reflect that it was reported
+            // TODO: use color during visualization to differentiate between reported and not reported fixes
+        }
+        localFixes.add(fix)
     }
 
     private fun calculateDistance(a: PositionFix, b: PositionFix): Float {
