@@ -46,6 +46,12 @@ class ClientViewModel(
         return files.map { it.removeSuffix(".json") }.toTypedArray()
     }
 
+    fun clearRun() {
+        localFixes.clear()
+        fixCount = 0
+        reportCount = 0
+    }
+
     fun loadRun(runId: String) {
         viewModelScope.launch {
             try {

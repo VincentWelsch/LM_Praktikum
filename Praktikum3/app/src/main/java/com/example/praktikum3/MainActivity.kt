@@ -539,6 +539,9 @@ fun StrategyConfiguration(client: ClientViewModel,
                         accelThresholdText = client.getAccelThreshold().toString()
                     }) { Text(text = "Reset strategy and variables") }
                 }
+                // TODO: Add buttons clear, store, and load runs
+                // TODO: Add text field to enter run ID
+                // TODO: Add button to reset parameters using client.resetStrategyVars()
             }
             ReportingStrategies.PERIODIC -> Row {
                 TextField(
