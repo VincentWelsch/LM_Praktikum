@@ -30,12 +30,3 @@ data class PositionFix(
     }
 }
 
-@Serializable
-class Run(val runId: String, val fixes: Array<PositionFix>) {
-    fun getRunId(): String {
-        return runId
-    }
-    fun getFixes(): Array<PositionFix> {
-        return fixes
-    }
-}

@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -313,3 +314,15 @@ class ClientViewModel(
         // TODO: Communicate to server
     }
 }
+
+
+@Serializable
+class Run(val runId: String, val fixes: Array<PositionFix>) {
+    fun getRunId(): String {
+        return runId
+    }
+    fun getFixes(): Array<PositionFix> {
+        return fixes
+    }
+}
+

@@ -61,9 +61,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.LaunchedEffect
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -639,41 +636,68 @@ fun StrategyConfiguration(client: ClientViewModel,
     } // Strategy-specific configuration
 }
 
+
 @Composable
-fun site_map(sensorManager: SensorManager, locationManager: LocationManager){
-    OsmMapScreen(floatArrayOf(0f, 0f))
+fun site_map(client: ClientViewModel) {
+    // Holt das array der Positionfixes
+    val fixes = client.getLocalFixes()
+    OsmMapScreen(fixes = fixes)
 }
 
 @Composable
-fun OsmMapScreen(positionData: FloatArray) {
+fun OsmMapScreen(fixes: Array<PositionFix>) {
+    val ctx = LocalContext.current
 
     AndroidView(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp), // This fixed height is the key to solving the zoom issue
-        factory = {
-            MapView(it).apply {
+            .height(300.dp),
+        factory = { context ->
+            org.osmdroid.views.MapView(context).apply {
                 setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
                 controller.setZoom(15.0)
                 setMultiTouchControls(true)
-                controller.setCenter(GeoPoint(51.482582, 7.217153)) // Default: Bochumer Innenstadt (nur Startposition)
+                controller.setCenter(org.osmdroid.util.GeoPoint(51.482582, 7.217153))
             }
         },
         update = { mapView ->
-            if (positionData.size == 2 && positionData[0] != 0f && positionData[1] != 0f) {
-                val geoPoint = GeoPoint(positionData[1].toDouble(), positionData[0].toDouble())
-                mapView.controller.setCenter(geoPoint)
-                mapView.controller.setZoom(16.0)
-
-                // Clear existing overlays and add a new marker
+            if (fixes.isNotEmpty()) {
                 mapView.overlays.clear()
-                val marker = Marker(mapView)
-                marker.position = geoPoint
-                marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                mapView.overlays.add(marker)
+
+                fixes.forEach { fix ->
+                    val geoPoint = org.osmdroid.util.GeoPoint(fix.latitude.toDouble(), fix.longitude.toDouble())
+                    val marker = org.osmdroid.views.overlay.Marker(mapView)
+                    marker.position = geoPoint
+
+                    val icon = marker.icon
+
+                    // Farbe basierend auf 'wasReported' setzen
+                    if (fix.wasReported) {
+                        // Grün für gemeldete Fixes
+                        icon.setTint(android.graphics.Color.GREEN)
+                        marker.title = "Gesendet"
+                    } else {
+                        // Orange für nicht gemeldete Fixe
+                        icon.setTint(android.graphics.Color.rgb(255, 165, 0))
+                        marker.title = "Nicht gesendet"
+                    }
+
+                    marker.icon = icon
+                    marker.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                    )
+                    mapView.overlays.add(marker)
+                }
+
+                // Auf den neuesten Fix zentrieren
+                val latestFix = fixes.last()
+                mapView.controller.animateTo(
+                    org.osmdroid.util.GeoPoint(latestFix.latitude.toDouble(), latestFix.longitude.toDouble())
+                )
+
                 mapView.invalidate()
             }
         }
     )
 }
-
