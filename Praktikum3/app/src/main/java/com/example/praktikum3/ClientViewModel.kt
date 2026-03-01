@@ -1,27 +1,28 @@
 package com.example.praktikum3
 
-import android.icu.text.Transliterator
+import android.content.Context
 import android.location.Location
 import android.util.Log
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import java.io.File
 
-class ClientViewModel {
+class ClientViewModel(
+    private val appContext: Context): ViewModel() {
     // ==========================================================================================
-    // current strategy
+    // toast display
     // ==========================================================================================
-    /*private var strategy: ReportingStrategies = ReportingStrategies.NONE // strategy
-    fun getCurrentStrategy(): ReportingStrategies {
-        return strategy
-    }
-    fun setStrategy(strategy: ReportingStrategies) {
-        this.strategy = strategy
-    }*/
+    private val _uiEvent = MutableSharedFlow<String>() // UI event message channel
+    val uiEvent = _uiEvent.asSharedFlow()
 
     // ==========================================================================================
     // local fixes
     // ==========================================================================================
-    private val localFixes = mutableListOf<PositionFix>()
+    private var localFixes = mutableListOf<PositionFix>() // local fixes
 
     private val mockLocalFixes: Array<PositionFix> = arrayOf<PositionFix>(
         PositionFix(51.482f, 7.217f, 0f, true),
@@ -32,15 +33,106 @@ class ClientViewModel {
     )
 
     fun getLocalFixes(): Array<PositionFix> {
+        // return localFixes.toTypedArray()
         return mockLocalFixes // TODO: return actual local fixes
     }
 
+    // ==========================================================================================
+    // manage runs
+    // ==========================================================================================
+    fun listRuns(): Array<String> {
+        // Return all run IDs as String array
+        val files: Array<String> = appContext.fileList()
+        return files.map { it.removeSuffix(".json") }.toTypedArray()
+    }
+
     fun loadRun(runId: String) {
-        // TODO
+        viewModelScope.launch {
+            try {
+                // Check runId
+                if (runId.isEmpty()) {
+                    Log.e("LoadFromFile", "Run ID is empty")
+                    _uiEvent.emit("Error: Run ID is empty")
+                } else if (runId.length > 20) {
+                    Log.e("LoadFromFile", "Run ID is too long")
+                    _uiEvent.emit("Error: Run ID is too long")
+                } else if (runId.contains(" ") ||
+                    runId.contains("\n") ||
+                    runId.contains("\t") ||
+                    runId.contains("/") ||
+                    runId.contains("\\") ||
+                    runId.contains(":")
+                ) {
+                    Log.e("SaveToFile", "Run ID contains illegal character")
+                    _uiEvent.emit("Error: Run ID contains illegal character")
+                } else if (!appContext.fileList().contains("$runId.json")) {
+                    Log.e("LoadFromFile", "Run ID does not exist")
+                    _uiEvent.emit("Error: Run ID does not exist")
+                } else {
+                    // Valid runId
+                    // Read from file
+                    val file = File(appContext.filesDir, "$runId.json")
+                    val runJson = file.readText()
+                    val run: Run = Json.decodeFromString<Run>(runJson)
+
+                    // Set local variables
+                    localFixes = run.getFixes().toMutableList()
+                    fixCount = run.getFixes().filter { !it.wasReported }.size
+                    reportCount = localFixes.size - fixCount
+                    // TODO: ensure no new data is added by sensors while loading
+
+                    val runFixesCount = localFixes.size
+                    Log.d("LoadFromFile", "Loaded $runFixesCount fixes from run $runId")
+                    _uiEvent.emit("Loaded $runFixesCount fixes from run $runId")
+                }
+            } catch (e: Exception) {
+                Log.e("LoadFromFile", "Failed to load run: ${e.message}")
+                _uiEvent.emit("Error: Failed to load run")
+            }
+        }
     }
 
     fun storeRun(runId: String) {
-        // TODO
+        viewModelScope.launch {
+            // Check runId
+            if (runId.isEmpty()) {
+                Log.e("SaveToFile", "Run ID is empty")
+                _uiEvent.emit("Error: Run ID is empty")
+            } else if (runId.length > 20) {
+                Log.e("SaveToFile", "Run ID is too long")
+                _uiEvent.emit("Error: Run ID is too long")
+            } else if (runId.contains(" ") ||
+                runId.contains("\n") ||
+                runId.contains("\t") ||
+                runId.contains("/") ||
+                runId.contains("\\") ||
+                runId.contains(":")
+            ) {
+                Log.e("SaveToFile", "Run ID contains illegal character")
+                _uiEvent.emit("Error: Run ID contains illegal character")
+            } else {
+                // Valid runId
+                try {
+                    // Create temporary Run object for serialization
+                    val run = Run(runId, localFixes.toTypedArray())
+                    val runJson = Json.encodeToString(run)
+                    val runFixesCount = run.getFixes().size
+
+                    // Write to file
+                    // val file = File(appContext.filesDir, "$runId.json")
+                    val publicDir = appContext.getExternalFilesDir(null)
+                    val file = File(publicDir, "$runId.json")
+                    file.writeText(runJson)
+                    // Now using external directory for easy run data exchange between students
+
+                    Log.d("SaveToFile", "Saved $runFixesCount fixes to run $runId")
+                    _uiEvent.emit("Saved $runFixesCount fixes to run $runId")
+                } catch (e: Exception) {
+                    Log.e("SaveToFile", "Failed to save run: ${e.message}")
+                    _uiEvent.emit("Error: Failed to save run")
+                }
+            }
+        }
     }
 
     // ==========================================================================================

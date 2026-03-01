@@ -11,6 +11,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -59,6 +60,7 @@ import kotlin.math.sqrt
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.LaunchedEffect
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -105,11 +107,19 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationManager: LocationManager) {
-    val client = ClientViewModel()
     val ctx = LocalContext.current
+    val client = ClientViewModel(ctx)
+
+    // ViewModels should not call UI events
+    // Instead client sends an intended message to be displayed as a toast
+    LaunchedEffect(Unit) {client.uiEvent.collect { message: String ->
+        Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show()
+    } }
 
     Column (
-        modifier = Modifier.padding(innerPadding).fillMaxSize(),
+        modifier = Modifier
+            .padding(innerPadding)
+            .fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
