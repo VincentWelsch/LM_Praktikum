@@ -49,8 +49,7 @@ class ClientViewModel(
 
     fun clearRun() {
         localFixes.clear()
-        fixCount = 0
-        reportCount = 0
+        resetCounts()
     }
 
     fun loadRun(runId: String) {
@@ -317,7 +316,7 @@ class ClientViewModel(
 
 
 @Serializable
-class Run(val runId: String, val fixes: Array<PositionFix>) {
+class Run(private val runId: String, private val fixes: Array<PositionFix>) {
     fun getRunId(): String {
         return runId
     }

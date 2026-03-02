@@ -61,6 +61,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,7 +109,15 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationManager: LocationManager) {
     val ctx = LocalContext.current
-    val client = ClientViewModel(ctx)
+    val client: ClientViewModel = viewModel(
+        // Clean way of creating a persistent view model
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            // Pass the application context to avoid memory leaks
+            return ClientViewModel(ctx.applicationContext) as T
+        } })
+    // ClientViewModel is only created when none exists
+    // Should finally prevent loss of run data when flipping the phone
 
     // ViewModels should not call UI events
     // Instead client sends an intended message to be displayed as a toast
@@ -120,13 +132,24 @@ fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationMana
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        var display: String by rememberSaveable { mutableStateOf("map") }
+        Row{ // Nav bar
+            Button(onClick = { display = "rec" }) {
+                Text(text = "Record")
+            }
+            Button(onClick = { display = "disp" }) {
+                Text(text = "Display")
+            }
 
-        SensorConfig(
-            sensorManager = sensorManager,
-            locationManager = locationManager,
-            client = client,
-            ctx = ctx,
-        )
+        }
+        when (display) { // Content
+            "rec" -> SensorConfig(
+                sensorManager = sensorManager,
+                locationManager = locationManager,
+                client = client,
+                ctx = ctx)
+            "disp" -> site_map(client)
+        }
     }
 }
 
@@ -135,28 +158,28 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                  client: ClientViewModel, ctx: Context
 ) {
     // State
-    var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
-    var currentStrategy: ReportingStrategies by remember { mutableStateOf(ReportingStrategies.NONE) }
-    var acceleration: Double by remember { mutableDoubleStateOf(0.0) }
+    var currentMethod: String by rememberSaveable { mutableStateOf(LocationManager.GPS_PROVIDER) }
+    var currentStrategy: ReportingStrategies by rememberSaveable { mutableStateOf(ReportingStrategies.NONE) }
+    var acceleration: Double by rememberSaveable { mutableDoubleStateOf(0.0) }
     var accelerationTextColor: Color by remember { mutableStateOf(Color.DarkGray) }
-    var periodicJob: Job? by remember { mutableStateOf(null) }
+    var periodicJob: Job? by rememberSaveable { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
     // Strategy Config
-    var jobDelay: Long by remember { mutableLongStateOf(client.getJobDelay()) }
+    var jobDelay: Long by rememberSaveable { mutableLongStateOf(client.getJobDelay()) }
         // Rate of updates with PERIODIC equals: 1 / jobDelay
-    var distanceThreshold: Float by remember { mutableFloatStateOf(client.getDistanceThreshold()) } // in m
+    var distanceThreshold: Float by rememberSaveable { mutableFloatStateOf(client.getDistanceThreshold()) } // in m
         // Updates with DISTANCE_BASED when distance between periodic fix and last fix >= distanceThreshold
-    var maxVelocity: Float by remember { mutableFloatStateOf(client.getMaxVelocity()) } // in m/s
+    var maxVelocity: Float by rememberSaveable { mutableFloatStateOf(client.getMaxVelocity()) } // in m/s
         // Rate of updates with MANAGED_PERIODIC equals: distanceThreshold / maxVelocity
-    var accelThreshold: Double by remember { mutableDoubleStateOf(client.getAccelThreshold()) } // in m/s^2
+    var accelThreshold: Double by rememberSaveable { mutableDoubleStateOf(client.getAccelThreshold()) } // in m/s^2
         // Movent with MANAGED_MOVEMENT detected when: acceleration >= accelThreshold
 
 
     // Sensor config
-    var accelDelay: Int by remember { mutableIntStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
-    var positionMinTimeMs: Int by remember { mutableIntStateOf(15000) }
-    var positionDistanceM: Float by remember { mutableFloatStateOf(10f) }
+    var accelDelay: Int by rememberSaveable { mutableIntStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
+    var positionMinTimeMs: Int by rememberSaveable { mutableIntStateOf(15000) }
+    var positionDistanceM: Float by rememberSaveable { mutableFloatStateOf(10f) }
     fun generalAccuracyChanged(sensor: String, accuracy: Int) {
         if (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM) {
             val warning = when (accuracy) {
@@ -651,7 +674,8 @@ fun OsmMapScreen(fixes: Array<PositionFix>) {
     AndroidView(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp),
+            .height(600.dp)
+            .clip(RectangleShape),
         factory = { context ->
             org.osmdroid.views.MapView(context).apply {
                 setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
