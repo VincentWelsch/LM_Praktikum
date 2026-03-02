@@ -34,8 +34,8 @@ class ClientViewModel(
     )
 
     fun getLocalFixes(): Array<PositionFix> {
-        // return localFixes.toTypedArray()
-        return mockLocalFixes // TODO: return actual local fixes
+        return localFixes.toTypedArray()
+        // return mockLocalFixes
     }
 
     // ==========================================================================================
@@ -77,7 +77,8 @@ class ClientViewModel(
                 } else {
                     // Valid runId
                     // Read from file
-                    val file = File(appContext.filesDir, "$runId.json")
+                    val publicDir = appContext.getExternalFilesDir(null)
+                    val file = File(publicDir, "$runId.json")
                     val runJson = file.readText()
                     val run: Run = Json.decodeFromString<Run>(runJson)
 
@@ -154,6 +155,18 @@ class ClientViewModel(
     private var reportCount: Int = 0 // reportCount
     fun getReportCount(): Int {
         return reportCount
+    }
+
+    fun showFixCounts() { // display as toast
+        viewModelScope.launch {
+            try {
+                Log.d("ShowFixCounts", "Fixes: $fixCount, Reports: $reportCount")
+                _uiEvent.emit("Fixes: $fixCount, Reports: $reportCount")
+            } catch (e: Exception) {
+                Log.e("ShowFixCounts", "Failed to show fix counts: ${e.message}")
+                _uiEvent.emit("Error: Failed to show fix counts")
+            }
+        }
     }
 
     // ==========================================================================================
@@ -316,12 +329,29 @@ class ClientViewModel(
 
 
 @Serializable
-class Run(private val runId: String, private val fixes: Array<PositionFix>) {
+data class Run(private val runId: String, private val fixes: Array<PositionFix>) {
     fun getRunId(): String {
         return runId
     }
     fun getFixes(): Array<PositionFix> {
         return fixes
+    }
+
+    // equals/hashCode must be overridden
+    // https://www.baeldung.com/kotlin/data-class-equals-method
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is Run) return false
+
+        if (runId != other.runId) return false
+        if (!fixes.contentEquals(other.fixes)) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = runId.hashCode()
+        result = 31 * result + fixes.hashCode()
+        return result
     }
 }
 
