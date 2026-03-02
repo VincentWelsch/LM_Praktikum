@@ -11,6 +11,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FilenameFilter
+import kotlin.io.path.Path
 
 class ClientViewModel(
     private val appContext: Context): ViewModel() {
@@ -55,14 +57,18 @@ class ClientViewModel(
     fun loadRun(runId: String) {
         viewModelScope.launch {
             try {
+                val publicDir = appContext.getExternalFilesDir(null)
+                // See View > Tool Windows > Device Explorer
+                // Files located at /storage/emulated/0/Android/data/com.example.praktikum3/files
+
                 // Check runId
-                if (runId.isEmpty()) {
+                if (runId.isEmpty()) { // empty?
                     Log.e("LoadFromFile", "Run ID is empty")
                     _uiEvent.emit("Error: Run ID is empty")
-                } else if (runId.length > 20) {
+                } else if (runId.length > 20) { // too long?
                     Log.e("LoadFromFile", "Run ID is too long")
                     _uiEvent.emit("Error: Run ID is too long")
-                } else if (runId.contains(" ") ||
+                } else if (runId.contains(" ") || // contains illegal characters?
                     runId.contains("\n") ||
                     runId.contains("\t") ||
                     runId.contains("/") ||
@@ -71,13 +77,12 @@ class ClientViewModel(
                 ) {
                     Log.e("SaveToFile", "Run ID contains illegal character")
                     _uiEvent.emit("Error: Run ID contains illegal character")
-                } else if (!appContext.fileList().contains("$runId.json")) {
+                } else if (publicDir == null || // does not exist?
+                    !Path(publicDir.absolutePath + "/$runId.json").toFile().exists()) {
                     Log.e("LoadFromFile", "Run ID does not exist")
                     _uiEvent.emit("Error: Run ID does not exist")
-                } else {
-                    // Valid runId
+                } else { // Valid runId
                     // Read from file
-                    val publicDir = appContext.getExternalFilesDir(null)
                     val file = File(publicDir, "$runId.json")
                     val runJson = file.readText()
                     val run: Run = Json.decodeFromString<Run>(runJson)
@@ -86,7 +91,6 @@ class ClientViewModel(
                     localFixes = run.getFixes().toMutableList()
                     fixCount = run.getFixes().filter { !it.wasReported }.size
                     reportCount = localFixes.size - fixCount
-                    // TODO: ensure no new data is added by sensors while loading
 
                     val runFixesCount = localFixes.size
                     Log.d("LoadFromFile", "Loaded $runFixesCount fixes from run $runId")
@@ -101,25 +105,24 @@ class ClientViewModel(
 
     fun storeRun(runId: String) {
         viewModelScope.launch {
-            // Check runId
-            if (runId.isEmpty()) {
-                Log.e("SaveToFile", "Run ID is empty")
-                _uiEvent.emit("Error: Run ID is empty")
-            } else if (runId.length > 20) {
-                Log.e("SaveToFile", "Run ID is too long")
-                _uiEvent.emit("Error: Run ID is too long")
-            } else if (runId.contains(" ") ||
-                runId.contains("\n") ||
-                runId.contains("\t") ||
-                runId.contains("/") ||
-                runId.contains("\\") ||
-                runId.contains(":")
-            ) {
-                Log.e("SaveToFile", "Run ID contains illegal character")
-                _uiEvent.emit("Error: Run ID contains illegal character")
-            } else {
-                // Valid runId
-                try {
+            try {
+                // Check runId
+                if (runId.isEmpty()) { // is empty?
+                    Log.e("SaveToFile", "Run ID is empty")
+                    _uiEvent.emit("Error: Run ID is empty")
+                } else if (runId.length > 20) { // too long?
+                    Log.e("SaveToFile", "Run ID is too long")
+                    _uiEvent.emit("Error: Run ID is too long")
+                } else if (runId.contains(" ") || // contains illegal characters?
+                    runId.contains("\n") ||
+                    runId.contains("\t") ||
+                    runId.contains("/") ||
+                    runId.contains("\\") ||
+                    runId.contains(":")
+                ) {
+                    Log.e("SaveToFile", "Run ID contains illegal character")
+                    _uiEvent.emit("Error: Run ID contains illegal character")
+                } else { // Valid runId
                     // Create temporary Run object for serialization
                     val run = Run(runId, localFixes.toTypedArray())
                     val runJson = Json.encodeToString(run)
@@ -132,12 +135,12 @@ class ClientViewModel(
                     file.writeText(runJson)
                     // Now using external directory for easy run data exchange between students
 
-                    Log.d("SaveToFile", "Saved $runFixesCount fixes to run $runId")
+                    Log.d("SaveToFile", "Saved $runFixesCount fixes to run $runId ($publicDir)")
                     _uiEvent.emit("Saved $runFixesCount fixes to run $runId")
-                } catch (e: Exception) {
-                    Log.e("SaveToFile", "Failed to save run: ${e.message}")
-                    _uiEvent.emit("Error: Failed to save run")
                 }
+            } catch (e: Exception) {
+                Log.e("SaveToFile", "Failed to save run: ${e.message}")
+                _uiEvent.emit("Error: Failed to save run")
             }
         }
     }
