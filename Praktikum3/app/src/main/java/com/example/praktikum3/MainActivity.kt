@@ -742,6 +742,14 @@ fun site_map(client: ClientViewModel) {
 fun OsmMapScreen(fixes: Array<PositionFix>) {
     val ctx = LocalContext.current
 
+    LaunchedEffect(Unit) {
+        org.osmdroid.config.Configuration.getInstance().load(
+            ctx,
+            android.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
+        )
+        org.osmdroid.config.Configuration.getInstance().userAgentValue = ctx.packageName
+    }
+
     AndroidView(
         modifier = Modifier
             .fillMaxWidth()
@@ -792,6 +800,9 @@ fun OsmMapScreen(fixes: Array<PositionFix>) {
                 )
 
                 mapView.invalidate()
+            }
+            else{
+                Log.d("empty fixes", "No fixes available");
             }
         }
     )
