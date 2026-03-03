@@ -11,14 +11,17 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
@@ -56,6 +59,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.pow
 import kotlin.math.sqrt
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.serialization.json.Json
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -99,21 +111,50 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationManager: LocationManager) {
-    val client = ClientViewModel()
+    Json.encodeToString(PositionFix(51.482f, 7.217f, 0f, true))
     val ctx = LocalContext.current
+    val client: ClientViewModel = viewModel(
+        // Clean way of creating a persistent view model
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            // Pass the application context to avoid memory leaks
+            return ClientViewModel(ctx.applicationContext) as T
+        } })
+    // ClientViewModel is only created when none exists
+    // Should finally prevent loss of run data when flipping the phone
+
+    // ViewModels should not call UI events
+    // Instead client sends an intended message to be displayed as a toast
+    LaunchedEffect(Unit) {client.uiEvent.collect { message: String ->
+        Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show()
+    } }
 
     Column (
-        modifier = Modifier.padding(innerPadding).fillMaxSize(),
+        modifier = Modifier
+            .padding(innerPadding)
+            .fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        var display: String by rememberSaveable { mutableStateOf("map") }
+        Row{ // Nav bar
+            Button(onClick = { display = "rec" }) {
+                Text(text = "Record")
+            }
+            Button(onClick = { display = "disp" }) {
+                Text(text = "Display")
+            }
 
-        SensorConfig(
-            sensorManager = sensorManager,
-            locationManager = locationManager,
-            client = client,
-            ctx = ctx,
-        )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        when (display) { // Content
+            "rec" -> SensorConfig(
+                sensorManager = sensorManager,
+                locationManager = locationManager,
+                client = client,
+                ctx = ctx)
+            "disp" -> site_map(client)
+        }
     }
 }
 
@@ -122,28 +163,28 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                  client: ClientViewModel, ctx: Context
 ) {
     // State
-    var currentMethod: String by remember { mutableStateOf(LocationManager.GPS_PROVIDER) }
-    var currentStrategy: ReportingStrategies by remember { mutableStateOf(ReportingStrategies.NONE) }
-    var acceleration: Double by remember { mutableDoubleStateOf(0.0) }
+    var currentMethod: String by rememberSaveable { mutableStateOf(LocationManager.GPS_PROVIDER) }
+    var currentStrategy: ReportingStrategies by rememberSaveable { mutableStateOf(ReportingStrategies.NONE) }
+    var acceleration: Double by rememberSaveable { mutableDoubleStateOf(0.0) }
     var accelerationTextColor: Color by remember { mutableStateOf(Color.DarkGray) }
-    var periodicJob: Job? by remember { mutableStateOf(null) }
+    var periodicJob: Job? by rememberSaveable { mutableStateOf(null) }
     val scope = rememberCoroutineScope()
 
     // Strategy Config
-    var jobDelay: Long by remember { mutableLongStateOf(client.getJobDelay()) }
+    var jobDelay: Long by rememberSaveable { mutableLongStateOf(client.getJobDelay()) }
         // Rate of updates with PERIODIC equals: 1 / jobDelay
-    var distanceThreshold: Float by remember { mutableFloatStateOf(client.getDistanceThreshold()) } // in m
+    var distanceThreshold: Float by rememberSaveable { mutableFloatStateOf(client.getDistanceThreshold()) } // in m
         // Updates with DISTANCE_BASED when distance between periodic fix and last fix >= distanceThreshold
-    var maxVelocity: Float by remember { mutableFloatStateOf(client.getMaxVelocity()) } // in m/s
+    var maxVelocity: Float by rememberSaveable { mutableFloatStateOf(client.getMaxVelocity()) } // in m/s
         // Rate of updates with MANAGED_PERIODIC equals: distanceThreshold / maxVelocity
-    var accelThreshold: Double by remember { mutableDoubleStateOf(client.getAccelThreshold()) } // in m/s^2
+    var accelThreshold: Double by rememberSaveable { mutableDoubleStateOf(client.getAccelThreshold()) } // in m/s^2
         // Movent with MANAGED_MOVEMENT detected when: acceleration >= accelThreshold
 
 
     // Sensor config
-    var accelDelay: Int by remember { mutableIntStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
-    var positionMinTimeMs: Int by remember { mutableIntStateOf(15000) }
-    var positionDistanceM: Float by remember { mutableFloatStateOf(10f) }
+    var accelDelay: Int by rememberSaveable { mutableIntStateOf(SensorManager.SENSOR_DELAY_NORMAL) }
+    var positionMinTimeMs: Int by rememberSaveable { mutableIntStateOf(15000) }
+    var positionDistanceM: Float by rememberSaveable { mutableFloatStateOf(10f) }
     fun generalAccuracyChanged(sensor: String, accuracy: Int) {
         if (accuracy < SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM) {
             val warning = when (accuracy) {
@@ -445,6 +486,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
     // Components
     Column {
         StrategySelection(client, currentStrategy, ::changeStrategy)
+        Spacer(modifier = Modifier.height(16.dp))
         StrategyConfiguration(client, currentStrategy, ::changeStrategy)
         if (currentStrategy == ReportingStrategies.MANAGED_MOVEMENT || currentStrategy == ReportingStrategies.MANAGED_PLUS_MOVEMENT)
             Text(text = "Accel $acceleration", color = accelerationTextColor)
@@ -457,7 +499,7 @@ fun StrategySelection(client: ClientViewModel,
                       changeStrategy: (ReportingStrategies) -> Unit) {
     // Reporting strategy selection
     Column(
-        modifier = Modifier.selectableGroup(),
+        modifier = Modifier.selectableGroup().background(Color.DarkGray),
         verticalArrangement = Arrangement.spacedBy(16.dp) // Abstand zwischen allen Items
     ) {
         Text(text = "Select reporting strategy:")
@@ -501,121 +543,267 @@ fun StrategyConfiguration(client: ClientViewModel,
                           currentStrategy: ReportingStrategies,
                           changeStrategy: (ReportingStrategies) -> Unit) {
     // Strategy-specific configuration
-    Column {
-        var periodicText by remember { mutableStateOf(client.getJobDelay().toString()) }
-        var distanceText by remember { mutableStateOf(client.getDistanceThreshold().toString()) }
-        var maxVelocityText by remember { mutableStateOf(client.getMaxVelocity().toString()) }
-        var accelThresholdText by remember { mutableStateOf(client.getAccelThreshold().toString()) }
-        when (currentStrategy) {
-            ReportingStrategies.NONE -> Row {
-                Column {
-                    Text(text = "No strategy selected")
-                    Button(onClick = {
-                        changeStrategy(ReportingStrategies.NONE)
-                        client.resetCounts()
-                    }) { Text(text = "Reset strategy and counts") }
-                    Button(onClick = {
-                        changeStrategy(ReportingStrategies.NONE)
-                        client.resetStrategyVars()
-                        periodicText = client.getJobDelay().toString()
-                        distanceText = client.getDistanceThreshold().toString()
-                        maxVelocityText = client.getMaxVelocity().toString()
-                        accelThresholdText = client.getAccelThreshold().toString()
-                    }) { Text(text = "Reset strategy and variables") }
-                }
-            }
-            ReportingStrategies.PERIODIC -> Row {
-                TextField(
-                    value = periodicText,
-                    onValueChange = { newText ->
-                        periodicText = newText.filter { it.isDigit() }
-                    },
-                    label = { Text("Delay (ms as Long)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        Column(
+            modifier = Modifier.width(330.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            var periodicText by rememberSaveable { mutableStateOf(client.getJobDelay().toString()) }
+            var distanceText by rememberSaveable {
+                mutableStateOf(
+                    client.getDistanceThreshold().toString()
                 )
-                Button(onClick = {
-                    val newJobDelay: Long? = periodicText.toLongOrNull()
-                    if (newJobDelay != null) {
-                        client.setJobDelay(newJobDelay)
-                    }
-                    periodicText = client.getJobDelay().toString()
-                }) { Text(text = "Set") }
             }
-            ReportingStrategies.DISTANCE_BASED,
-            ReportingStrategies.MANAGED_PERIODIC,
-            ReportingStrategies.MANAGED_MOVEMENT -> Column {
-                Row { // distanceThreshold is shared across 1b), 1c) and 1d)
+            var maxVelocityText by rememberSaveable {
+                mutableStateOf(
+                    client.getMaxVelocity().toString()
+                )
+            }
+            var accelThresholdText by rememberSaveable {
+                mutableStateOf(
+                    client.getAccelThreshold().toString()
+                )
+            }
+            var runId by remember { mutableStateOf("") }
+            when (currentStrategy) {
+                ReportingStrategies.NONE -> Column {
+                    Row { // Run ID input
+                        TextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = runId,
+                            onValueChange = { newText ->
+                                runId = newText
+                            },
+                            label = { Text("Run ID") },
+                            singleLine = true
+                        )
+                    }
+                    Row { // Run control
+                        Button(
+                            modifier = Modifier.width(110.dp),
+                            onClick = {
+                                client.clearRun()
+                            }) { Text(text = "Clear run") }
+                        Button(
+                            modifier = Modifier.width(110.dp),
+                            onClick = {
+                                client.loadRun(runId)
+                            }) { Text(text = "Load run") }
+                        Button(
+                            modifier = Modifier.width(110.dp),
+                            onClick = {
+                                client.storeRun(runId)
+                            }) { Text(text = "Store run") }
+                    }
+                    Row { // Get fix count
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                client.showFixCounts()
+                            }
+                        ) { Text(text = "Get fix count") }
+                    }
+                    Row { // Reset strategy vars
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                changeStrategy(ReportingStrategies.NONE)
+                                client.resetStrategyVars()
+                                periodicText = client.getJobDelay().toString()
+                                distanceText = client.getDistanceThreshold().toString()
+                                maxVelocityText = client.getMaxVelocity().toString()
+                                accelThresholdText = client.getAccelThreshold().toString()
+                            }) { Text(text = "Restore default strategy vars") }
+                    }
+                }
+
+                ReportingStrategies.PERIODIC -> Row {
                     TextField(
-                        value = distanceText,
+                        value = periodicText,
                         onValueChange = { newText ->
-                            distanceText = newText.filter { it.isDigit() || it == '.' }
+                            periodicText = newText.filter { it.isDigit() }
                         },
-                        label = { Text("Distance threshold (in m as Float)") },
+                        label = { Text("Delay (ms as Long)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.width(150.dp)
+                        modifier = Modifier.width(250.dp),
                     )
-                    Button(onClick = {
-                        val newDistance: Float? = distanceText.toFloatOrNull()
-                        if (newDistance != null) {
-                            client.setDistanceThreshold(newDistance)
-                            if (currentStrategy == ReportingStrategies.MANAGED_PERIODIC)
-                                changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
+                    Button(
+                        modifier = Modifier.width(80.dp),
+                        onClick = {
+                            val newJobDelay: Long? = periodicText.toLongOrNull()
+                            if (newJobDelay != null) {
+                                client.setJobDelay(newJobDelay)
+                            }
+                            periodicText = client.getJobDelay().toString()
+                        }) { Text(text = "Set") }
+                }
+
+                ReportingStrategies.DISTANCE_BASED,
+                ReportingStrategies.MANAGED_PERIODIC,
+                ReportingStrategies.MANAGED_MOVEMENT -> Column {
+                    Row { // distanceThreshold is shared across 1b), 1c) and 1d)
+                        TextField(
+                            value = distanceText,
+                            onValueChange = { newText ->
+                                distanceText = newText.filter { it.isDigit() || it == '.' }
+                            },
+                            label = { Text("Distance threshold (in m as Float)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.width(250.dp),
+                        )
+                        Button(
+                            modifier = Modifier.width(80.dp),
+                            onClick = {
+                                val newDistance: Float? = distanceText.toFloatOrNull()
+                                if (newDistance != null) {
+                                    client.setDistanceThreshold(newDistance)
+                                    if (currentStrategy == ReportingStrategies.MANAGED_PERIODIC)
+                                        changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
                                     // recalculate timeToWait
                                     // timeToWait in job is only calculated once to avoid unnecessary calculations
-                        }
-                        distanceText = client.getDistanceThreshold().toString()
-                    }) { Text(text = "Set") }
-                }
-                Row { // 1c) and 1d) are extensions of 1b)
-                    when (currentStrategy) {
-                        ReportingStrategies.MANAGED_PERIODIC -> {
-                            TextField(
-                                value = client.getMaxVelocity().toString(),
-                                onValueChange = { newText ->
-                                    maxVelocityText = newText.filter { it.isDigit() }
-                                },
-                                label = { Text("Max velocity (m/s as Float)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true
-                            )
-                            Button(onClick = {
-                                val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
-                                if (newMaxVelocity != null) {
-                                    client.setMaxVelocity(newMaxVelocity)
-                                    changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
-                                        // recalculate timeToWait
-                                        // timeToWait in job is only calculated once to avoid unnecessary calculations
                                 }
-                                maxVelocityText = client.getMaxVelocity().toString()
+                                distanceText = client.getDistanceThreshold().toString()
                             }) { Text(text = "Set") }
-                        }
-                        ReportingStrategies.MANAGED_MOVEMENT -> {
-                            TextField(
-                                value = client.getAccelThreshold().toString(),
-                                onValueChange = { newText ->
-                                    accelThresholdText = newText.filter { it.isDigit() }
-                                },
-                                label = { Text("Acceleration threshold (m/s^2 as Double)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true
-                            )
-                            Button(onClick = {
-                                val newAccelThreshold: Double? = accelThresholdText.toDoubleOrNull()
-                                if (newAccelThreshold != null) {
-                                    client.setAccelThreshold(newAccelThreshold)
-                                }
-                                accelThresholdText = client.getAccelThreshold().toString()
-                            }) { Text(text = "Set") }
-                        }
-                        else -> {}
-                    } // inner when
+                    }
+                    Row { // 1c) and 1d) are extensions of 1b)
+                        when (currentStrategy) {
+                            ReportingStrategies.MANAGED_PERIODIC -> {
+                                TextField(
+                                    value = client.getMaxVelocity().toString(),
+                                    onValueChange = { newText ->
+                                        maxVelocityText = newText.filter { it.isDigit() }
+                                    },
+                                    label = { Text("Max velocity (m/s as Float)") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier.width(250.dp),
+                                )
+                                Button(
+                                    modifier = Modifier.width(80.dp),
+                                    onClick = {
+                                        val newMaxVelocity: Float? = maxVelocityText.toFloatOrNull()
+                                        if (newMaxVelocity != null) {
+                                            client.setMaxVelocity(newMaxVelocity)
+                                            changeStrategy(ReportingStrategies.MANAGED_PERIODIC)
+                                            // recalculate timeToWait
+                                            // timeToWait in job is only calculated once to avoid unnecessary calculations
+                                        }
+                                        maxVelocityText = client.getMaxVelocity().toString()
+                                    }) { Text(text = "Set") }
+                            }
+
+                            ReportingStrategies.MANAGED_MOVEMENT -> {
+                                TextField(
+                                    value = client.getAccelThreshold().toString(),
+                                    onValueChange = { newText ->
+                                        accelThresholdText = newText.filter { it.isDigit() }
+                                    },
+                                    label = { Text("Acceleration threshold (m/s^2 as Double)") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier.width(250.dp),
+                                )
+                                Button(
+                                    modifier = Modifier.width(80.dp),
+                                    onClick = {
+                                        val newAccelThreshold: Double? =
+                                            accelThresholdText.toDoubleOrNull()
+                                        if (newAccelThreshold != null) {
+                                            client.setAccelThreshold(newAccelThreshold)
+                                        }
+                                        accelThresholdText = client.getAccelThreshold().toString()
+                                    }) { Text(text = "Set") }
+                            }
+
+                            else -> {}
+                        } // inner when
+                    }
                 }
+
+                else -> Row {
+                    Text(text = "Strategy not yet implemented")
+                }
+            } // outer when
+        } // Strategy-specific configuration
+    }
+}
+
+
+@Composable
+fun site_map(client: ClientViewModel) {
+    // Holt das array der Positionfixes
+    val fixes = client.getLocalFixes()
+    OsmMapScreen(fixes = fixes)
+}
+
+@Composable
+fun OsmMapScreen(fixes: Array<PositionFix>) {
+    val ctx = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        org.osmdroid.config.Configuration.getInstance().load(
+            ctx,
+            android.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
+        )
+        org.osmdroid.config.Configuration.getInstance().userAgentValue = ctx.packageName
+    }
+
+    AndroidView(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(600.dp)
+            .clip(RectangleShape),
+        factory = { context ->
+            org.osmdroid.views.MapView(context).apply {
+                setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+                controller.setZoom(15.0)
+                setMultiTouchControls(true)
+                controller.setCenter(org.osmdroid.util.GeoPoint(51.482582, 7.217153))
             }
-            else -> Row {
-                Text(text = "Strategy not yet implemented")
+        },
+        update = { mapView ->
+            if (fixes.isNotEmpty()) {
+                mapView.overlays.clear()
+
+                fixes.forEach { fix ->
+                    val geoPoint = org.osmdroid.util.GeoPoint(fix.latitude.toDouble(), fix.longitude.toDouble())
+                    val marker = org.osmdroid.views.overlay.Marker(mapView)
+                    marker.position = geoPoint
+
+                    val icon = marker.icon
+
+                    // Farbe basierend auf 'wasReported' setzen
+                    if (fix.wasReported) {
+                        // Grün für gemeldete Fixes
+                        icon.setTint(android.graphics.Color.GREEN)
+                        marker.title = "Gesendet"
+                    } else {
+                        // Orange für nicht gemeldete Fixe
+                        icon.setTint(android.graphics.Color.rgb(255, 165, 0))
+                        marker.title = "Nicht gesendet"
+                    }
+
+                    marker.icon = icon
+                    marker.setAnchor(
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
+                        org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                    )
+                    mapView.overlays.add(marker)
+                }
+
+                // Auf den neuesten Fix zentrieren
+                val latestFix = fixes.last()
+                mapView.controller.animateTo(
+                    org.osmdroid.util.GeoPoint(latestFix.latitude.toDouble(), latestFix.longitude.toDouble())
+                )
+
+                mapView.invalidate()
             }
-        } // outer when
-    } // Strategy-specific configuration
+            else{
+                Log.d("empty fixes", "No fixes available");
+            }
+        }
+    )
 }

@@ -6,6 +6,7 @@ data class PositionFix(
     val latitude: Float,
     val longitude: Float,
     val altitude: Float,
+    var wasReported: Boolean = false,
 ) {
     // equals/hashCode must be overridden
     // https://www.baeldung.com/kotlin/data-class-equals-method
@@ -16,6 +17,7 @@ data class PositionFix(
         if (latitude != other.latitude) return false
         if (longitude != other.longitude) return false
         if (altitude != other.altitude) return false
+        if (wasReported != other.wasReported) return false
         return true
     }
 
@@ -23,6 +25,8 @@ data class PositionFix(
         var result = latitude.hashCode()
         result = 31 * result + longitude.hashCode()
         result = 31 * result + altitude.hashCode()
+        result = 31 * result + wasReported.hashCode()
         return result
     }
 }
+
