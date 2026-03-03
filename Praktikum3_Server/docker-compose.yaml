@@ -16,8 +16,6 @@ services:
       backend:
     expose:
       - "8000"
-    volumes:
-      - stored_files:/data
 
   db:
     image: postgres:15
