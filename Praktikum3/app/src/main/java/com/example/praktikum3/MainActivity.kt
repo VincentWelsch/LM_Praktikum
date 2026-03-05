@@ -9,12 +9,15 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.LocationRequest
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -318,6 +321,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         registerLocationListener(method)
         currentMethod = method
     }
+    @RequiresApi(Build.VERSION_CODES.S)
     @Suppress("MissingPermission")
     fun changeStrategy(strategy: ReportingStrategies) {
         if (currentMethod != LocationManager.GPS_PROVIDER) {
@@ -338,6 +342,12 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             client.setLastSentLocation(null)
 
             // select strategy
+            val request = LocationRequest.Builder(0)
+                .setMaxUpdates(1)
+                .setQuality(LocationRequest.QUALITY_BALANCED_POWER_ACCURACY)
+                .build()
+                // without custom builder, locations are cached
+                // our first runs had duplicate fixes because of it
             when (strategy) {
                 ReportingStrategies.NONE -> {
                     Log.d("ReportingStrategies", "Selected NONE")
@@ -351,6 +361,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                 client.incFixCount()
                                 locationManager.getCurrentLocation(
                                     currentMethod,
+                                    request,
                                     null,
                                     ContextCompat.getMainExecutor(ctx),
                                     { location ->
@@ -397,6 +408,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                 client.incFixCount()
                                 locationManager.getCurrentLocation(
                                     currentMethod,
+                                    request,
                                     null,
                                     ContextCompat.getMainExecutor(ctx),
                                     { location ->
@@ -438,6 +450,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                                     client.incFixCount()
                                     locationManager.getCurrentLocation(
                                         currentMethod,
+                                        request,
                                         null,
                                         ContextCompat.getMainExecutor(ctx),
                                             // determine that this runs on the main or UI thread
