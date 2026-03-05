@@ -43,6 +43,12 @@ class ClientViewModel(
     // ==========================================================================================
     // manage runs
     // ==========================================================================================
+    // JSON config
+    private val json = Json {
+        encodeDefaults = true // prevent defaults from being omitted (caused wrong display on map)
+        ignoreUnknownKeys = true
+    }
+
     fun listRuns(): Array<String> {
         // Return all run IDs as String array
         val files: Array<String> = appContext.fileList()
@@ -85,7 +91,7 @@ class ClientViewModel(
                     // Read from file
                     val file = File(publicDir, "$runId.json")
                     val runJson = file.readText()
-                    val run: Run = Json.decodeFromString<Run>(runJson)
+                    val run: Run = json.decodeFromString<Run>(runJson)
 
                     // Set local variables
                     localFixes = run.getFixes().toMutableList()
@@ -125,7 +131,7 @@ class ClientViewModel(
                 } else { // Valid runId
                     // Create temporary Run object for serialization
                     val run = Run(runId, localFixes.toTypedArray())
-                    val runJson = Json.encodeToString(run)
+                    val runJson = json.encodeToString(run)
                     val runFixesCount = run.getFixes().size
 
                     // Write to file
@@ -175,7 +181,7 @@ class ClientViewModel(
     // ==========================================================================================
     // strategy-specific variables
     // ==========================================================================================
-    private var jobDelay: Long = 5000 // jobDelay
+    private var jobDelay: Long = 2000 // jobDelay
     fun getJobDelay(): Long {
         return jobDelay
     }
