@@ -1,0 +1,47 @@
+# Access backend via localhost:8000 (localhost:8000/docs to test endpoints manually)
+# Access adminer via localhost:8080 (use db login data from service 'db')
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: server
+    restart: unless-stopped
+    env_file:
+      - db_env
+    depends_on:
+      - db
+    networks:
+      backend:
+    expose:
+      - "8000"
+
+  db:
+    image: postgres:15
+    container_name: db
+    restart: unless-stopped
+    env_file:
+      - db_env
+    networks:
+      backend:
+    ports:
+      - 5432:5432
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data/pgdata
+      - ./data_model/tables.sql:/docker-entrypoint-initdb.d
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: 'no'
+    depends_on:
+      - db
+    networks:
+      backend:
+    ports:
+      - 8080:8080
+
+networks:
+  backend:
+    driver: bridge
