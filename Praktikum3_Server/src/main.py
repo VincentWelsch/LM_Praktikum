@@ -19,22 +19,28 @@ app = FastAPI(title="LM P3 Server")
 
 
 # endpoints below
+
 @app.get("/run/get") # return all run names with IDs
 async def get_run_ids():
-    return None # TODO
+    conn = connect_db()
+    if not conn:
+        return {"success": 0, "message": "DB connection failed", "runs": []}
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, name FROM run")
+        rows = cur.fetchall()
+        runs = [{"runId": r["id"], "runName": r["name"]} for r in rows]
+        return {"success": 1, "runs": runs}
+    finally:
+        conn.close()
 
-@app.post("/run/create")
+@app.post("/run/create") # create a run by name
 async def create_run(runName: str):
     return None # TODO
 
-@app.post("/run/report")
+@app.post("/run/report") # report a fix with runId
 async def create_run(fixReport: FixReport):
     return None # TODO
-
-# --- intention ---
-# 1. POST to /run/create to create a run by name
-# 2. GET to /run/get to get all run names and IDs
-# 3. POST to /run/report with runId to report fix
 
 # endpoints further below are not really required by the tasks for Praktikum 3
 @app.get("/run/get/{runId}") # return all fixes of a run
