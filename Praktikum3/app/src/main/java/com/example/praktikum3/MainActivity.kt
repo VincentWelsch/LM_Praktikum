@@ -238,7 +238,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         }
     }
     val locationListener: LocationListener = LocationListener { location ->
-        client.incFixCount()
         client.reportToServer(
             PositionFix(
                 location.latitude.toFloat(),
@@ -321,7 +320,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         registerLocationListener(method)
         currentMethod = method
     }
-    @RequiresApi(Build.VERSION_CODES.S)
     @Suppress("MissingPermission")
     fun changeStrategy(strategy: ReportingStrategies) {
         if (currentMethod != LocationManager.GPS_PROVIDER) {
@@ -343,8 +341,10 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
 
             // select strategy
             val request = LocationRequest.Builder(0)
+                .setDurationMillis(5000) // timeout
                 .setMaxUpdates(1)
-                .setQuality(LocationRequest.QUALITY_BALANCED_POWER_ACCURACY)
+                .clearMinUpdateIntervalMillis()
+                .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
                 .build()
                 // without custom builder, locations are cached
                 // our first runs had duplicate fixes because of it
@@ -358,7 +358,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
                             try {
-                                client.incFixCount()
                                 locationManager.getCurrentLocation(
                                     currentMethod,
                                     request,
@@ -405,7 +404,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
                             try {
-                                client.incFixCount()
                                 locationManager.getCurrentLocation(
                                     currentMethod,
                                     request,
@@ -447,7 +445,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                             // this job only requests a location while the client thinks it is moving
                             if (client.getIsMoving()) {
                                 try {
-                                    client.incFixCount()
                                     locationManager.getCurrentLocation(
                                         currentMethod,
                                         request,

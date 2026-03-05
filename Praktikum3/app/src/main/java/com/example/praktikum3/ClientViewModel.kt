@@ -149,9 +149,9 @@ class ClientViewModel(
     // counting
     // ==========================================================================================
     private var fixCount: Int = 0 // fixCount
-    fun incFixCount() {
+    /* fun incFixCount() {
         fixCount += 1
-    }
+    } */
     fun getFixCount(): Int {
         return fixCount
     }
