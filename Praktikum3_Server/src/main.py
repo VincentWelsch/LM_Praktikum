@@ -20,8 +20,8 @@ app = FastAPI(title="LM P3 Server")
 
 # endpoints below
 
-@app.get("/run/get") # return all run names with IDs
-async def get_run_ids():
+@app.get("/run/get") # return all runs with ID and name
+async def get_runs():
     conn = connect_db()
     if not conn:
         return {"success": 0, "message": "DB connection failed", "runs": []}
@@ -36,10 +36,20 @@ async def get_run_ids():
 
 @app.post("/run/create") # create a run by name
 async def create_run(runName: str):
-    return None # TODO
+    conn = connect_db()
+    if not conn:
+        return {"success": 0, "message": "DB connection failed"}
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO run (name) VALUES (?)", (runName,))
+        conn.commit()
+        new_id = cur.lastrowid
+        return {"success": 1, "runId": new_id}
+    finally:
+        conn.close()
 
 @app.post("/run/report") # report a fix with runId
-async def create_run(fixReport: FixReport):
+async def report_fix(fixReport: FixReport):
     return None # TODO
 
 # endpoints further below are not really required by the tasks for Praktikum 3
@@ -76,9 +86,28 @@ async def get_fixes(runId: str):
     connection.close()
     return answer
 
-@app.get("/run/remove/{runId}") # remove a run and all its fixes
+@app.delete("/run/remove/{runId}") # remove a run and all its fixes by its runID
 async def remove_run(runId: str):
-    return None # TODO
+    conn = connect_db()
+    if not conn:
+        return {"success": 0, "message": "DB connection failed"}
+    try:
+        cur = conn.cursor()
+        
+        # If run doesnt exist, send an error message
+        cur.execute("SELECT 1 FROM run WHERE id = ?", (runId,))
+        if cur.fetchone() is None:
+            return {
+                "success": 0,
+                "message": f"No run with ID {runId} found – nothing was deleted",
+            }
+
+        cur.execute("DELETE FROM fix WHERE runId = ?", (runId,))
+        cur.execute("DELETE FROM run WHERE id = ?", (runId,))
+        conn.commit()
+        return {"success": 1, "message": f"Run {runId} removed"}
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
