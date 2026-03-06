@@ -41,6 +41,12 @@ async def create_run(runName: str):
         return {"success": 0, "message": "DB connection failed"}
     try:
         cur = conn.cursor()
+
+        # If run already exists, send an error message
+        cur.execute("SELECT id FROM run WHERE name = ?", (runName,))
+        if cur.fetchone():
+            return {"success": 0, "message": "runName already exists"}
+
         cur.execute("INSERT INTO run (name) VALUES (?)", (runName,))
         conn.commit()
         new_id = cur.lastrowid
