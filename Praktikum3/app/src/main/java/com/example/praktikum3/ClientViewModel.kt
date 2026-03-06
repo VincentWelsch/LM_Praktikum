@@ -303,7 +303,6 @@ class ClientViewModel(
         // Track fixes locally for later visualization
         if (wasSent) {
             fix.wasReported = true // update fix to reflect that it was reported
-            // TODO: use color during visualization to differentiate between reported and not reported fixes
         }
         localFixes.add(fix)
     }
