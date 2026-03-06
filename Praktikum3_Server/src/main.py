@@ -56,9 +56,37 @@ async def create_run(runName: str):
 
 @app.post("/run/report") # report a fix with runId
 async def report_fix(fixReport: FixReport):
-    return None # TODO
+    conn = connect_db()
+    if not conn:
+        return {"success": 0, "message": "DB connection failed"}
+    try:
+        cur = conn.cursor()
+
+        cur.execute("SELECT 1 FROM run WHERE id = ?", (fixReport.runId,))
+        if not cur.fetchone():
+            return {"success": 0, "message": "fix cant be saved, because this runId doesnt exist"}
+
+        cur.execute(
+            """
+            INSERT INTO fix (runId, longitude, latitude, altitude, timestamp)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                fixReport.runId,
+                fixReport.longitude,
+                fixReport.latitude,
+                fixReport.altitude,
+                fixReport.timestamp,
+            ),
+        )
+        conn.commit()
+        return {"success": 1, "message": "Fix saved"}
+    finally:
+        conn.close()
 
 # endpoints further below are not really required by the tasks for Praktikum 3
+
+# currently doesnt work
 @app.get("/run/get/{runId}") # return all fixes of a run
 async def get_fixes(runId: str):
     # get db connection
