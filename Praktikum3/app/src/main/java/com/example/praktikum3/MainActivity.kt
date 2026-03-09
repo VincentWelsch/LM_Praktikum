@@ -767,42 +767,48 @@ fun OsmMapScreen(fixes: Array<PositionFix>) {
             if (fixes.isNotEmpty()) {
                 mapView.overlays.clear()
 
+                // 1. Größe der Punkte definieren (in Pixeln)
+                val dotSize = 30
+
                 fixes.forEach { fix ->
                     val geoPoint = org.osmdroid.util.GeoPoint(fix.latitude.toDouble(), fix.longitude.toDouble())
                     val marker = org.osmdroid.views.overlay.Marker(mapView)
                     marker.position = geoPoint
 
-                    val icon = marker.icon
-
-                    // Farbe basierend auf 'wasReported' setzen
-                    if (fix.wasReported) {
-                        // Grün für gemeldete Fixes
-                        icon.setTint(android.graphics.Color.GREEN)
-                        marker.title = "Gesendet"
-                    } else {
-                        // Orange für nicht gemeldete Fixe
-                        icon.setTint(android.graphics.Color.rgb(255, 165, 0))
-                        marker.title = "Nicht gesendet"
+                    // 2. Erzeuge eine Kreis-Bitmap als Icon
+                    val bitmap = android.graphics.Bitmap.createBitmap(dotSize, dotSize, android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    val paint = android.graphics.Paint().apply {
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.FILL
+                        // Farbe basierend auf wasReported
+                        color = if (fix.wasReported) {
+                            android.graphics.Color.GREEN
+                        } else {
+                            android.graphics.Color.rgb(255, 165, 0) // Orange
+                        }
                     }
 
-                    marker.icon = icon
+                    // Zeichne den Kreis in die Mitte der Bitmap
+                    val radius = dotSize / 2f
+                    canvas.drawCircle(radius, radius, radius, paint)
+
+                    // 3. Icon dem Marker zuweisen
+                    marker.icon = android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
+
+                    // 4. Den Anker in die Mitte setzen (damit der Punkt genau auf der Koordinate liegt)
                     marker.setAnchor(
                         org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
-                        org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
+                        org.osmdroid.views.overlay.Marker.ANCHOR_CENTER
                     )
+
                     mapView.overlays.add(marker)
                 }
 
                 // Auf den neuesten Fix zentrieren
-                val latestFix = fixes.last()
-                mapView.controller.animateTo(
-                    org.osmdroid.util.GeoPoint(latestFix.latitude.toDouble(), latestFix.longitude.toDouble())
-                )
-
+                val latest = fixes.last()
+                mapView.controller.animateTo(org.osmdroid.util.GeoPoint(latest.latitude.toDouble(), latest.longitude.toDouble()))
                 mapView.invalidate()
-            }
-            else{
-                Log.d("empty fixes", "No fixes available");
             }
         }
     )
