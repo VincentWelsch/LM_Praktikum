@@ -13,6 +13,10 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FilenameFilter
 import kotlin.io.path.Path
+import com.example.praktikum3.FixReport
+import com.example.praktikum3.ServerResponse
+import com.example.praktikum3.ApiClient
+
 
 class ClientViewModel(
     private val appContext: Context): ViewModel() {
@@ -333,6 +337,47 @@ class ClientViewModel(
             |Time: $time
         """.trimMargin())
         // TODO: Communicate to server
+
+        val body = FixReport(
+            runId = "defaultRun",               // <-- ggf. durch deine Run‑ID ersetzen
+            longitude = fix.longitude.toDouble(),
+            latitude = fix.latitude.toDouble(),
+            altitude = fix.altitude.toDouble(),
+            timestamp = time
+        )
+        ApiClient.api.reportFix(body).enqueue(object : retrofit2.Callback<ServerResponse> {
+            override fun onResponse(
+                call: retrofit2.Call<ServerResponse>,
+                response: retrofit2.Response<ServerResponse>
+            ) {
+                if (response.isSuccessful) {
+                    val resp = response.body()
+                    Log.d(
+                        "ReportToServer",
+                        "Server‑Antwort: success=${resp?.success}, message='${resp?.message}'"
+                    )
+                    // Optional: UI‑Feedback über SharedFlow
+                    viewModelScope.launch {
+                        _uiEvent.emit("Report sent: ${resp?.message}")
+                    }
+                } else {
+                    Log.e(
+                        "ReportToServer",
+                        "Server‑Fehler: HTTP ${response.code()} ${response.message()}"
+                    )
+                    viewModelScope.launch {
+                        _uiEvent.emit("Error sending report (HTTP ${response.code()})")
+                    }
+                }
+            }
+
+            override fun onFailure(call: retrofit2.Call<ServerResponse>, t: Throwable) {
+                Log.e("ReportToServer", "Netzwerk‑Fehler: ${t.localizedMessage}", t)
+                viewModelScope.launch {
+                    _uiEvent.emit("Network error while sending report")
+                }
+            }
+        })
     }
 }
 
