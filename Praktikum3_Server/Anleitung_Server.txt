@@ -1,0 +1,28 @@
+Einrichtung:
+SQLite-DB angelegt in test.db durch ausführen des Skriptes init_db.py
+db_util.py angepasst auf SQLite
+Virtuelle Umgebung für Python-Pakete erzeugt: python -m venv venv
+Venv aktivieren: venv\Scripts\activate.bat
+Pakete installieren: pip install fastapi uvicorn
+
+Server starten:
+Venv aktivieren: venv\Scripts\activate.bat
+cd src
+uvicorn main:app --reload
+
+Anfragen an Server (aus separatem Terminal):
+
+return all runs with ID and name
+    curl "http://127.0.0.1:8000/run/get"
+
+create a run by name
+    curl -X POST "http://127.0.0.1:8000/run/create?runName=<runName>"
+
+remove a run and all its fixes by its runID
+    curl -X DELETE "http://127.0.0.1:8000/run/remove/<runID>"
+
+report a fix with runId
+    curl -X POST "http://127.0.0.1:8000/run/report" -H "Content-Type: application/json" -d "{\"runId\":\"<runID>\",\"longitude\":13.4,\"latitude\":52.5,\"altitude\":30.0}"
+
+return all fixes of a run
+    curl "http://127.0.0.1:8000/run/get/<runID>"
