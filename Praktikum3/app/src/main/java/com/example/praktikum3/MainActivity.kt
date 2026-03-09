@@ -1,6 +1,7 @@
 package com.example.praktikum3
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
@@ -9,12 +10,15 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.LocationRequest
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -67,7 +71,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.serialization.json.Json
+import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,7 +105,10 @@ class MainActivity : ComponentActivity() {
                         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                             val sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
                             val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-                            Menu(innerPadding, sensorManager, locationManager)
+                            val fusedLocationClient = remember {
+                                LocationServices.getFusedLocationProviderClient(applicationContext)
+                            }
+                            Menu(innerPadding, sensorManager, locationManager, fusedLocationClient)
                         }
                     }
                 }
@@ -110,8 +120,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationManager: LocationManager) {
-    Json.encodeToString(PositionFix(51.482f, 7.217f, 0f, true))
+fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager,
+         locationManager: LocationManager, fusedLocationClient: FusedLocationProviderClient) {
     val ctx = LocalContext.current
     val client: ClientViewModel = viewModel(
         // Clean way of creating a persistent view model
@@ -151,6 +161,7 @@ fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationMana
             "rec" -> SensorConfig(
                 sensorManager = sensorManager,
                 locationManager = locationManager,
+                fusedLocationClient = fusedLocationClient,
                 client = client,
                 ctx = ctx)
             "disp" -> site_map(client)
@@ -160,6 +171,7 @@ fun Menu(innerPadding: PaddingValues, sensorManager: SensorManager, locationMana
 
 @Composable
 fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
+                 fusedLocationClient: FusedLocationProviderClient,
                  client: ClientViewModel, ctx: Context
 ) {
     // State
@@ -235,7 +247,6 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         }
     }
     val locationListener: LocationListener = LocationListener { location ->
-        client.incFixCount()
         client.reportToServer(
             PositionFix(
                 location.latitude.toFloat(),
@@ -318,10 +329,10 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
         registerLocationListener(method)
         currentMethod = method
     }
-    @Suppress("MissingPermission")
+    @SuppressLint("MissingPermission")
     fun changeStrategy(strategy: ReportingStrategies) {
         if (currentMethod != LocationManager.GPS_PROVIDER) {
-            unregisterLocationListener(currentMethod)
+            // unregisterLocationListener(currentMethod)
             currentMethod = LocationManager.GPS_PROVIDER
             Log.w("StrategyChangeWarning", "Location method changed to GPS")
         }
@@ -329,7 +340,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             periodicJob?.cancel() // End job if already running
 
             // unregister location and sensor listeners
-            unregisterLocationListener(currentMethod)
+            // unregisterLocationListener(currentMethod)
             unregisterSensorListener(accelListener)
             // unregisterSensorListener(gyroListener)
             // unregisterSensorListener(magnetListener)
@@ -337,37 +348,44 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             // reset to trigger immediate report at next fix (for DISTANCE_BASED)
             client.setLastSentLocation(null)
 
+            // note: migrated to FusedLocationProvider to avoid cached locations
+            val currentLocationRequest = CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .setMaxUpdateAgeMillis(0) // no cached locations
+                .setDurationMillis(5000) // timeout
+                .build()
+
+            fun getCurrentLocation() {
+                fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
+                    .addOnSuccessListener({ location ->
+                        if (location != null) {
+                            client.reportToServer(
+                                PositionFix(
+                                    location.latitude.toFloat(),
+                                    location.longitude.toFloat(),
+                                    0f
+                                ),
+                                System.currentTimeMillis(),
+                                strategy
+                            )
+                        }
+                    })
+            }
+
             // select strategy
             when (strategy) {
                 ReportingStrategies.NONE -> {
                     Log.d("ReportingStrategies", "Selected NONE")
                 }
-                ReportingStrategies.PERIODIC -> {
+
+                ReportingStrategies.PERIODIC,
+                ReportingStrategies.DISTANCE_BASED -> {
                     Log.d("ReportingStrategies", "Selected PERIODIC")
                     periodicJob = scope.launch(Dispatchers.Default) {
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
                             try {
-                                client.incFixCount()
-                                locationManager.getCurrentLocation(
-                                    currentMethod,
-                                    null,
-                                    ContextCompat.getMainExecutor(ctx),
-                                    { location ->
-                                        if (location != null) {
-                                            client.reportToServer(
-                                                PositionFix(
-                                                    location.latitude.toFloat(),
-                                                    location.longitude.toFloat(),
-                                                    0f
-                                                ),
-                                                System.currentTimeMillis(),
-                                                ReportingStrategies.PERIODIC
-                                            )
-                                            Log.d("ReportingStrategies", "$location")
-                                        }
-                                    }
-                                )
+                                getCurrentLocation()
                             } catch (e: Exception) {
                                 Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
                             }
@@ -375,14 +393,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         }
                     }
                 }
-                ReportingStrategies.DISTANCE_BASED -> {
-                    Log.d("ReportingStrategies", "Selected DISTANCE_BASED")
-                    changePositionMethod(currentMethod)
-                    // locationListener callback sends location fixes to client
-                    // ClientViewModel checks if new report is needed
 
-                    Log.d("ReportingStrategies", "Distance-based strategy activated")
-                }
                 ReportingStrategies.MANAGED_PERIODIC -> {
                     Log.d("ReportingStrategies", "Selected MANAGED_PERIODIC")
                     periodicJob = scope.launch(Dispatchers.Default) {
@@ -394,24 +405,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         Log.d("ReportingStrategies", "Periodic job started")
                         while (true) {
                             try {
-                                client.incFixCount()
-                                locationManager.getCurrentLocation(
-                                    currentMethod,
-                                    null,
-                                    ContextCompat.getMainExecutor(ctx),
-                                    { location ->
-                                        if (location != null)
-                                            client.reportToServer(
-                                                PositionFix(
-                                                    location.latitude.toFloat(),
-                                                    location.longitude.toFloat(),
-                                                    0f
-                                                ),
-                                                System.currentTimeMillis(),
-                                                ReportingStrategies.MANAGED_PERIODIC
-                                            )
-                                    }
-                                )
+                                getCurrentLocation()
                             } catch (e: Exception) {
                                 Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
                             }
@@ -419,11 +413,11 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                         }
                     }
                 }
+
                 ReportingStrategies.MANAGED_MOVEMENT -> {
                     // GPS fix is only requested when movement is detected
                     // fix is only sent to server if distance to last fix is greater/equal than the threshold
                     Log.d("ReportingStrategies", "Selected MANAGED_MOVEMENT")
-                    changePositionMethod(currentMethod)
                     client.setIsMoving(false)
                     registerSensorLister(accelListener,Sensor.TYPE_ACCELEROMETER,
                         SensorManager.SENSOR_DELAY_NORMAL)
@@ -435,26 +429,9 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
                             // this job only requests a location while the client thinks it is moving
                             if (client.getIsMoving()) {
                                 try {
-                                    client.incFixCount()
-                                    locationManager.getCurrentLocation(
-                                        currentMethod,
-                                        null,
-                                        ContextCompat.getMainExecutor(ctx),
-                                            // determine that this runs on the main or UI thread
-                                        { location ->
-                                            if (location != null) {
-                                                client.reportToServer(
-                                                    PositionFix(
-                                                        location.latitude.toFloat(),
-                                                        location.longitude.toFloat(),
-                                                        0f
-                                                    ),
-                                                    System.currentTimeMillis(),
-                                                    ReportingStrategies.MANAGED_MOVEMENT
-                                                )
-                                            }
-                                        }
-                                    )
+                                    if (client.getIsMoving()) {
+                                        getCurrentLocation()
+                                    }
                                 } catch (e: Exception) {
                                     Log.e("GetCurrentLocation", "Failed to get location: ${e.message}")
                                 }
@@ -479,7 +456,7 @@ fun SensorConfig(sensorManager: SensorManager, locationManager: LocationManager,
             unregisterSensorListener(accelListener)
             // unregisterSensorListener(gyroListener)
             // unregisterSensorListener(magnetListener)
-            unregisterLocationListener(currentMethod)
+            // unregisterLocationListener(currentMethod)
         }
     }
 
@@ -499,7 +476,9 @@ fun StrategySelection(client: ClientViewModel,
                       changeStrategy: (ReportingStrategies) -> Unit) {
     // Reporting strategy selection
     Column(
-        modifier = Modifier.selectableGroup().background(Color.DarkGray),
+        modifier = Modifier
+            .selectableGroup()
+            .background(Color.DarkGray),
         verticalArrangement = Arrangement.spacedBy(16.dp) // Abstand zwischen allen Items
     ) {
         Text(text = "Select reporting strategy:")
@@ -642,6 +621,27 @@ fun StrategyConfiguration(client: ClientViewModel,
                 ReportingStrategies.DISTANCE_BASED,
                 ReportingStrategies.MANAGED_PERIODIC,
                 ReportingStrategies.MANAGED_MOVEMENT -> Column {
+                    Row { // delay from periodic
+                        TextField(
+                            value = periodicText,
+                            onValueChange = { newText ->
+                                periodicText = newText.filter { it.isDigit() }
+                            },
+                            label = { Text("Delay (ms as Long)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.width(250.dp),
+                        )
+                        Button(
+                            modifier = Modifier.width(80.dp),
+                            onClick = {
+                                val newJobDelay: Long? = periodicText.toLongOrNull()
+                                if (newJobDelay != null) {
+                                    client.setJobDelay(newJobDelay)
+                                }
+                                periodicText = client.getJobDelay().toString()
+                            }) { Text(text = "Set") }
+                    }
                     Row { // distanceThreshold is shared across 1b), 1c) and 1d)
                         TextField(
                             value = distanceText,
