@@ -336,7 +336,6 @@ class ClientViewModel(
             |Fix: $fix
             |Time: $time
         """.trimMargin())
-        // TODO: Communicate to server
 
         val body = FixReport(
             runId = "defaultRun",               // <-- ggf. durch deine Run‑ID ersetzen

@@ -62,9 +62,9 @@ async def report_fix(fixReport: FixReport):
     try:
         cur = conn.cursor()
 
-        cur.execute("SELECT 1 FROM run WHERE id = ?", (fixReport.runId,))
-        if not cur.fetchone():
-            return {"success": 0, "message": "fix cant be saved, because this runId doesnt exist"}
+        #cur.execute("SELECT 1 FROM run WHERE id = ?", (fixReport.runId,))
+        #if not cur.fetchone():
+        #    return {"success": 0, "message": "fix cant be saved, because this runId doesnt exist"}
 
         cur.execute(
             """
